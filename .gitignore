@@ -4,3 +4,4 @@
 packrat/lib*/
 packrat/src/
 data-raw/**/*
+!data-raw/*
