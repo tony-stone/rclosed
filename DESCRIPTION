@@ -1,0 +1,14 @@
+Package: rclosed
+Title: The Analysis of Quantitative Data for the ClosED Study, University of Sheffield
+Version: 0.0.0.9000
+Authors@R: as.person(c(
+    "Tony Stone <tony.stone@sheffield.ac.uk> [aut,cre]",
+    "Neil Shephard <n.shephard@sheffield.ac.uk> [aut]"
+    ))
+Description: The analysis of quantitative data for a study assessing the impact
+    of closing Emergency Departments in England (closED) the ClosED study
+    undertaken in ScHARR, University of Sheffield (2015-2016).
+Depends: R (>= 3.2.3)
+License: GPL-3
+LazyData: true
+URL: https://www.sheffield.ac.uk/scharr/sections/hsr/mcru/closed
