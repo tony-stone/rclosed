@@ -164,7 +164,7 @@ persons_2006_2014_long_grouped <- persons_2006_2014_long[, .(population = sum(po
 # give the fraction of each unit of source geography lying in each intersecting unit of destination geography.
 
 #Read in data
-LSOA2011_to_LSOA2001_attribution <- fread("data-raw/UK Data Service GeoConvert/95792208_lut.csv", sep=",", header=FALSE, colClasses=c("character", "numeric", "character"), skip=1L)
+LSOA2011_to_LSOA2001_attribution <- fread("data-raw/ONS population estimates/95792208_lut.csv", sep=",", header=FALSE, colClasses=c("character", "numeric", "character"), skip=1L)
 setnames(LSOA2011_to_LSOA2001_attribution, c("LSOA11", "attribution", "LSOA01"))
 
 # Remove non-English LSOAs
