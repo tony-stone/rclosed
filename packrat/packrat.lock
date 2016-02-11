@@ -192,6 +192,12 @@ Hash: a587412d3ca0bc19c7b457b1afab84d8
 Requires: crayon, digest, httr, igraph, jsonlite, knitr, rex,
     rstudioapi, stringdist, testthat
 
+Package: lubridate
+Source: CRAN
+Version: 1.5.0
+Hash: 038715dfce23c748aef45c22f46e4b75
+Requires: stringr
+
 Package: magrittr
 Source: CRAN
 Version: 1.5
