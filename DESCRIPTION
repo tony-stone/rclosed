@@ -12,3 +12,5 @@ Depends: R (>= 3.2.3)
 License: GPL-3
 LazyData: true
 URL: https://www.sheffield.ac.uk/scharr/sections/hsr/mcru/closed
+Imports: data.table,
+    ggplot2
