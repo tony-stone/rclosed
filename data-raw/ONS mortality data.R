@@ -86,7 +86,7 @@ extract1_2007_2014 <- extract1_2007_2014[death_underlying_cause != "other" | dea
 extract1_2007_2014_simplified <- extract1_2007_2014[, .(deaths=sum(deaths)), by=.(LSOA, sex, age, place_of_death, yearmonth)]
 
 # Save the data
-save(extract1_2007_2014_simplified, file = "data/ONS Mortality (16 conditions rich in avoidable deaths) data simplified.Rda")
+save(extract1_2007_2014_simplified, file = "data/ons mortality (16 conditions rich in avoidable deaths).rda")
 
 # Remove data
 rm(extract1_2007_2014, extract1_2007_2014_simplified, extract1_2007_2014_list)
@@ -156,7 +156,7 @@ extract2_2007_2014[, age := new_age_labels[match(age, old_age_labels)]]
 extract2_2007_2014_simplified <- extract2_2007_2014[, .(deaths=sum(deaths)), by=.(LSOA, sex, age, place_of_death, death_underlying_cause, yearmonth)]
 
 # Save the data
-save(extract2_2007_2014_simplified, file = "data/ONS Mortality (ALL conditions by chapter) data.Rda")
+save(extract2_2007_2014_simplified, file = "data/ons mortality (conditions by chapter).rda")
 
 
 # Check data looks as we might expect -------------------------------------
