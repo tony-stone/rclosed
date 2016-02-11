@@ -63,6 +63,6 @@ save(travel_time_data, file = "data/dft travel times.rda")
 
 # # Check how many LSOAs did not have any valid travel time
 # # - this is due to DfT software incorrectly recording that origin (LSOA) is not connected to any specified destination (A&E / ED)
-# test <- suppressWarnings(travel_time_data[, .(min_time = as.double(min(travel_time, na.rm = TRUE)), LSOA, year), by=.(LSOA, year)])
+# test <- suppressWarnings(travel_time_data[, .(min_time = as.double(min(travel_time, na.rm = TRUE))), by=.(LSOA, year)])
 # test[min_time == Inf, .N, by = year]
-# saveRDS(test[min_time == Inf, ], "LSOAs missing travel time.Rds")
+# saveRDS(test[min_time == Inf, .(LSOA, year)], "LSOAs missing travel time.Rds")
