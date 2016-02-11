@@ -1,6 +1,8 @@
 library(data.table)
 library(openxlsx)
 
+# Source: Bespoke data extracts from ONS, received 13/01/2016.
+# Data request to ONS <Mortality@ons.gsi.gov.uk> submitted on 25/09/2015 by Tony Stone <tony.stone@sheffield.ac.uk>.
 
 # Process 16 conditions rich in avoidable deaths --------------------------
 
@@ -158,6 +160,7 @@ save(extract2_2007_2014_simplified, file = "data/ONS Mortality (ALL conditions b
 
 
 # Check data looks as we might expect -------------------------------------
+# library(ggplot2)
 # # Deaths from all conditions by month for 10 year age bands
 # data.check <- extract2.2007.2014[, .(date= as.Date(paste0(date.yearmonth, "-01")),Total.death = sum(deaths)), by=.(date.yearmonth, age)]
 #
