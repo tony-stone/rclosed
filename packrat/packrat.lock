@@ -4,6 +4,11 @@ RVersion: 3.2.3
 Repos: CRAN=https://www.stats.bris.ac.uk/R/,
     CRANextra=http://www.stats.ox.ac.uk/pub/RWin
 
+Package: DBI
+Source: CRAN
+Version: 0.3.1
+Hash: 096699d1ac1cf530acfc646a0c90ee5d
+
 Package: NMF
 Source: CRAN
 Version: 0.20.6
@@ -20,6 +25,12 @@ Package: RColorBrewer
 Source: CRAN
 Version: 1.1-2
 Hash: c0d56cd15034f395874c870141870c25
+
+Package: RJDBC
+Source: CRAN
+Version: 0.2-5
+Hash: 5934c4196f1dae1c627e0c907c0fcd19
+Requires: DBI, rJava
 
 Package: Rcpp
 Source: CRAN
@@ -264,6 +275,11 @@ Package: praise
 Source: CRAN
 Version: 1.0.0
 Hash: 77da8f1df873a4b91e5c4a68fe2fb1b6
+
+Package: rJava
+Source: CRAN
+Version: 0.9-8
+Hash: 3e8627a2a5bd45c9bad6112acfc231d9
 
 Package: registry
 Source: CRAN
