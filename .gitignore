@@ -5,3 +5,6 @@ packrat/lib*/
 packrat/src/
 data-raw/**/*
 !data-raw/*
+# When making public we will not want to include any data
+#data/**/*
+#data/*
