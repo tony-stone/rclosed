@@ -1,5 +1,6 @@
 library(data.table)
 library(openxlsx)
+library(lubridate)
 
 # Source: Bespoke data extracts from ONS, received 13/01/2016.
 # Data request to ONS <Mortality@ons.gsi.gov.uk> submitted on 25/09/2015 by Tony Stone <tony.stone@sheffield.ac.uk>.
@@ -43,7 +44,7 @@ extract1_2007_2014[(month != "10" & month != "11" & month != "12"), yearmonth :=
 extract1_2007_2014[(month == "10" | month == "11" | month == "12"), yearmonth := paste0(year, "-", month, "-01")]
 
 # Set date, Remove year and month fields
-extract1_2007_2014[, c("yearmonth", "year", "month") := list(as.Date(yearmonth), NULL, NULL )]
+extract1_2007_2014[, c("yearmonth", "year", "month") := list(as.Date(fast_strptime(yearmonth, "%Y-%m-%d")), NULL, NULL )]
 
 ## age - conform to ESP2013 age bands
 # combine 90-94, 95-99, and 100+ age bands
@@ -62,28 +63,19 @@ extract1_2007_2014[, age := new_age_labels[match(age, old_age_labels)]]
 
 
 # Categorise deaths -------------------------------------------------------
-# NOTE: Much of this processing is not strictly necessary as we do not appear to need to look at the 16 conditions separately
 
 # Firstly, replace "Falls" by "other" as underlying cause of death for those 75+
 extract1_2007_2014[((age == "[75,80)" | age == "[80,85)" | age == "[85,90)" | age == "[90,Inf)") & death_underlying_cause == "Falls"), death_underlying_cause := "other"]
 
-# Remove the records for which the above replacement results in records where both causes of death are "other"
-extract1_2007_2014 <- extract1_2007_2014[death_underlying_cause != "other" | death_underlying_cause != "other", ]
+# by default start with secondary cause of death
+extract1_2007_2014[, cause_of_death := death_secondary_cause]
 
-# Not required, see note at top of section
-# # by default start with underlying cause of death
-# extract1.2007.2014.simplified[, cause.of.death := death.underlying.cause]
-#
-# # use secondary cause if underlying cause takes lower priority than secondary cause (and secondary cause is not "other")
-# logical.selection <- (extract1.2007.2014.simplified$death.underlying.cause %in% c("other", "Self-harm", "Falls", "Road traffic accident") & extract1.2007.2014.simplified$death.secondary.cause != "other")
-# extract1.2007.2014.simplified$cause.of.death[logical.selection] <- extract1.2007.2014.simplified$death.secondary.cause[logical.selection]
-#
-#
-# # Collapse data based on newly coded cause.of.death field
-# extract1.2007.2014.simplified <- extract1.2007.2014.simplified[, .(deaths = sum(deaths)), by=.(LSOA, sex, age, place.of.death, cause.of.death, date.yearmonth)]
+# use underlying cause if the secondary cause is "none" OR
+#  if the secondary cause is "other" and the underlying cause is not one of "Self-harm", "Fall" or "RTA"
+extract1_2007_2014[death_secondary_cause == "none" | (death_secondary_cause == "other" & !(death_underlying_cause %in% c("Self-harm", "Falls", "Road traffic accident"))), cause_of_death := death_underlying_cause]
 
-# Collapse data based on lsoa/sex/age/place/month
-extract1_2007_2014_simplified <- extract1_2007_2014[, .(deaths=sum(deaths)), by=.(LSOA, sex, age, place_of_death, yearmonth)]
+# Collapse data based on newly coded cause_of_death field
+extract1_2007_2014_simplified <- extract1_2007_2014[cause_of_death != "other", .(deaths = sum(deaths)), by=.(LSOA, sex, age, place_of_death, cause_of_death, yearmonth)]
 
 # Save the data
 save(extract1_2007_2014_simplified, file = "data/ons mortality (16 conditions rich in avoidable deaths).rda")
@@ -135,7 +127,7 @@ extract2_2007_2014[(month != "10" & month != "11" & month != "12"), yearmonth :=
 extract2_2007_2014[(month == "10" | month == "11" | month == "12"), yearmonth := paste0(year, "-", month, "-01")]
 
 # Set date, Remove year and month fields
-extract2_2007_2014[, c("yearmonth", "year", "month") := list(as.Date(yearmonth), NULL, NULL )]
+extract2_2007_2014[, c("yearmonth", "year", "month") := list(as.Date(fast_strptime(yearmonth, "%Y-%m-%d")), NULL, NULL )]
 
 ## age - conform to ESP2013 age bands
 # combine 90-94, 95-99, and 100+ age bands
