@@ -192,7 +192,7 @@ rm(LSOA2001_population_data)
 gc()
 
 # Save our annual 2006 to 2014 estimates
-save(LSOA2001_population_data_grouped, file = "data/2001-census lsoa annual population estimates 2006-2014.rda")
+save(LSOA2001_population_data_grouped, file = "data/2001-census lsoa annual population estimates 2006-2014.Rda")
 
 # Generate monthly population estimates (by linear interpolation) -------------
 # Period Jan 2007 to Mar 2014
@@ -241,7 +241,7 @@ LSOA2001_population_data_long[, yearmonth := as.Date(fast_strptime(paste0(substr
 setnames(LSOA2001_population_data_long, "population1", "population")
 
 # Save the monthly population data
-save(LSOA2001_population_data_long, file = "data/2001-census lsoa monthly population estimates 2007-01 to 2014-03.rda")
+save(LSOA2001_population_data_long, file = "data/2001-census lsoa monthly population estimates 2007-01 to 2014-03.Rda")
 
 
 # # Quick validation of data produced ------------------------------------------------

@@ -59,7 +59,7 @@ travel_time_data[, ':=' (
 travel_time_data[travel_time == 10000000, travel_time := NA]
 
 # Save DfT data
-save(travel_time_data, file = "data/dft travel times.rda")
+save(travel_time_data, file = "data/dft travel times.Rda")
 
 # # Check how many LSOAs did not have any valid travel time
 # # - this is due to DfT software incorrectly recording that origin (LSOA) is not connected to any specified destination (A&E / ED)

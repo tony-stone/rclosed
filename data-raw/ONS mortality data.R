@@ -5,7 +5,7 @@ library(lubridate)
 # Source: Bespoke data extracts from ONS, received 13/01/2016.
 # Data request to ONS <Mortality@ons.gsi.gov.uk> submitted on 25/09/2015 by Tony Stone <tony.stone@sheffield.ac.uk>.
 
-# Process 16 conditions rich in avoidable deaths --------------------------
+# Process mortality data from 16 conditions rich in avoidable deaths --------------------------
 
 ## Read in data
 # Filenames for extract 1
@@ -75,13 +75,13 @@ extract1_2007_2014[, cause_of_death := death_secondary_cause]
 extract1_2007_2014[death_secondary_cause == "none" | (death_secondary_cause == "other" & !(death_underlying_cause %in% c("Self-harm", "Falls", "Road traffic accident"))), cause_of_death := death_underlying_cause]
 
 # Collapse data based on newly coded cause_of_death field
-extract1_2007_2014_simplified <- extract1_2007_2014[cause_of_death != "other", .(deaths = sum(deaths)), by=.(LSOA, sex, age, place_of_death, cause_of_death, yearmonth)]
+mortality_serious_emergency_conditions <- extract1_2007_2014[cause_of_death != "other", .(deaths = sum(deaths)), by=.(LSOA, sex, age, place_of_death, cause_of_death, yearmonth)]
 
 # Save the data
-save(extract1_2007_2014_simplified, file = "data/ons mortality (16 conditions rich in avoidable deaths).rda")
+save(mortality_serious_emergency_conditions, file = "data/ons mortality (16 serious emergency conditions).Rda")
 
 # Remove data
-rm(extract1_2007_2014, extract1_2007_2014_simplified, extract1_2007_2014_list)
+rm(mortality_serious_emergency_conditions, extract1_2007_2014, extract1_2007_2014_list)
 gc()
 
 
@@ -145,10 +145,10 @@ new_age_labels <- c("[0,1)", "[1,5)", "[5,10)", "[10,15)", "[15,20)", "[20,25)",
 extract2_2007_2014[, age := new_age_labels[match(age, old_age_labels)]]
 
 # Collapse data based on lsoa/sex/age/place/underlying_cause/month
-extract2_2007_2014_simplified <- extract2_2007_2014[, .(deaths=sum(deaths)), by=.(LSOA, sex, age, place_of_death, death_underlying_cause, yearmonth)]
+mortality_all_chapters <- extract2_2007_2014[, .(deaths=sum(deaths)), by=.(LSOA, sex, age, place_of_death, death_underlying_cause, yearmonth)]
 
 # Save the data
-save(extract2_2007_2014_simplified, file = "data/ons mortality (conditions by chapter).rda")
+save(mortality_all_chapters, file = "data/ons mortality (conditions by chapter).Rda")
 
 
 # Check data looks as we might expect -------------------------------------

@@ -20,4 +20,4 @@ deciles[11] <- Inf
 imd2010[, imd_decile := 11 - cut(imd_score, breaks = deciles, labels = FALSE)]
 
 # Save
-save(imd2010, file = "data/imd2010.rda")
+save(imd2010, file = "data/imd2010.Rda")
