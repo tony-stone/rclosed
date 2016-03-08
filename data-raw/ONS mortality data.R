@@ -9,7 +9,7 @@ library(lubridate)
 
 ## Read in data
 # Filenames for extract 1
-file_names_1 <- paste0("data-raw/ONS mortality data/Extract 1/", 2007:2014, ".xlsx")
+file_names_1 <- paste0("data-raw/ONS mortality data/Extract 1 v2/", 2007:2014, ".xlsx")
 
 # Read in extract 1 data
 extract1_2007_2014_list <- lapply(file_names_1, function(fname) { data.table( read.xlsx(fname, sheet="Sheet1", startRow=2L, colNames=FALSE) ) } )
@@ -30,7 +30,7 @@ extract1_2007_2014[, ':=' (deaths = as.integer(deaths),
 
 
 ## Label data more meaningfully
-# sex (incidental note: looked at )
+# sex
 extract1_2007_2014[sex == "2", sex := "female"]
 extract1_2007_2014[sex == "1", sex := "male"]
 
@@ -61,6 +61,10 @@ new_age_labels <- c("[0,1)", "[1,5)", "[5,10)", "[10,15)", "[15,20)", "[20,25)",
 # recode age
 extract1_2007_2014[, age := new_age_labels[match(age, old_age_labels)]]
 
+# Check data
+# data_check <- extract1_2007_2014[, .N, by = .(death_underlying_cause, death_secondary_cause)]
+# setorder(data_check, death_underlying_cause)
+# View(data_check)
 
 # Categorise deaths -------------------------------------------------------
 
@@ -70,12 +74,31 @@ extract1_2007_2014[((age == "[75,80)" | age == "[80,85)" | age == "[85,90)" | ag
 # by default start with secondary cause of death
 extract1_2007_2014[, cause_of_death := death_secondary_cause]
 
-# use underlying cause if the secondary cause is "none" OR
-#  if the secondary cause is "other" and the underlying cause is not one of "Self-harm", "Fall" or "RTA"
-extract1_2007_2014[death_secondary_cause == "none" | (death_secondary_cause == "other" & !(death_underlying_cause %in% c("Self-harm", "Falls", "Road traffic accident"))), cause_of_death := death_underlying_cause]
+###############################################################################
+# # OLD LOGIC - As interpreted from "MCRU Programme 2006-2010: The emergency and
+# #  urgent care system - Final Report" BUT figures in that report suggest not
+# #  this logic is not correct.
+# # use underlying cause if the secondary cause is "none" OR
+# #  if the secondary cause is "other" and the underlying cause is not one of "Self-harm", "Fall" or "RTA"
+# extract1_2007_2014[death_secondary_cause == "none" | (death_secondary_cause == "other" & !(death_underlying_cause %in% c("Self-harm", "Falls", "Road traffic accident"))), cause_of_death := death_underlying_cause]
+###############################################################################
+
+# use underlying cause if the secondary cause is "none" OR "other"
+extract1_2007_2014[death_secondary_cause == "none" | death_secondary_cause == "other", cause_of_death := death_underlying_cause]
 
 # Collapse data based on newly coded cause_of_death field
 mortality_serious_emergency_conditions <- extract1_2007_2014[cause_of_death != "other", .(deaths = sum(deaths)), by=.(LSOA, sex, age, place_of_death, cause_of_death, yearmonth)]
+
+###############################################################################
+# # TEST - used to extract data to confirm actual logic used by MCRU report
+# extract1_2007_2014[death_secondary_cause == "none" | death_secondary_cause == "other", cause_of_death := death_underlying_cause]
+# test_data <- copy(mortality_serious_emergency_conditions[yearmonth >= as.Date("2007-04-01") & yearmonth < as.Date("2009-04-01"), ])
+# test_data[yearmonth >= as.Date("2007-04-01") & yearmonth < as.Date("2008-04-01"), year := "20078"]
+# test_data[yearmonth >= as.Date("2008-04-01") & yearmonth < as.Date("2009-04-01"), year := "20089"]
+# test_data <- test_data[, .(deaths = sum(deaths)), by = .(cause_of_death, year)]
+# setorder(test_data, year, cause_of_death)
+# write.table(test_data, "clipboard", sep="\t")
+###############################################################################
 
 # Save the data
 save(mortality_serious_emergency_conditions, file = "data/ons mortality (16 serious emergency conditions).Rda")
@@ -83,8 +106,6 @@ save(mortality_serious_emergency_conditions, file = "data/ons mortality (16 seri
 # Remove data
 rm(mortality_serious_emergency_conditions, extract1_2007_2014, extract1_2007_2014_list)
 gc()
-
-
 
 
 # Process all deaths ------------------------------------------------------
