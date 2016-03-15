@@ -4,7 +4,7 @@ library(data.table)
 # Load catchment areas
 catchment_areas <- readRDS("D:/data/Other data/DfT catchment areas in 2009 - 2016.02.04.Rds")
 
-# Reduce to areas of interest only
+# Reduce to sites of interest only
 destinations_of_interest <- c("basingstoke and north hampshire", "Bishop Auckland General Hospital", "chesterfield royal", "cumberland infirmary", "diana princess of wales",
   "Hemel Hempstead Hospital", "macclesfield district general", "Newark Hospital", "north devon district", "Rochdale Infirmary", "royal albert edward infirmary",
   "royal blackburn", "salisbury district", "scarborough", "scunthorpe general", "southport and formby district general", "University Hospital of Hartlepool",
@@ -43,7 +43,7 @@ setnames(LSOA2001_population_data_measure, c("destination", "population"), c("si
 
 
 # Load deaths data
-load("D:/Rpackages/rclosed/data/ons mortality (16 serious emergency conditions).Rda")
+load("data/ons deaths (16 serious emergency conditions).Rda")
 
 # merge catchment and deaths data
 data.table::setkey(catchment_areas_select, LSOA)
@@ -86,7 +86,7 @@ data.table::setnames(mortality_serious_emergency_conditions_measure, c("destinat
 data.table::setcolorder(mortality_serious_emergency_conditions_measure, c("site", "yearmonth", "measure", "sub_measure", "value"))
 
 
-# Combine "measures" ------------------------------------------------------
+# Combine measures --------------------------------------------------------
 
 example_measures_data <- rbind(mortality_serious_emergency_conditions_measure, deaths_serious_emergency_conditions_measure, LSOA2001_population_data_measure)
 
