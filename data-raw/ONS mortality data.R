@@ -87,7 +87,7 @@ extract1_2007_2014[, cause_of_death := death_secondary_cause]
 extract1_2007_2014[death_secondary_cause == "none" | death_secondary_cause == "other", cause_of_death := death_underlying_cause]
 
 # Collapse data based on newly coded cause_of_death field
-mortality_serious_emergency_conditions <- extract1_2007_2014[cause_of_death != "other", .(deaths = sum(deaths)), by=.(LSOA, sex, age, place_of_death, cause_of_death, yearmonth)]
+deaths_serious_emergency_conditions <- extract1_2007_2014[cause_of_death != "other", .(deaths = sum(deaths)), by=.(LSOA, sex, age, place_of_death, cause_of_death, yearmonth)]
 
 ###############################################################################
 # # TEST - used to extract data to confirm actual logic used by MCRU report
@@ -101,10 +101,10 @@ mortality_serious_emergency_conditions <- extract1_2007_2014[cause_of_death != "
 ###############################################################################
 
 # Save the data
-save(mortality_serious_emergency_conditions, file = "data/ons mortality (16 serious emergency conditions).Rda")
+save(deaths_serious_emergency_conditions, file = "data/ons deaths (16 serious emergency conditions).Rda")
 
 # Remove data
-rm(mortality_serious_emergency_conditions, extract1_2007_2014, extract1_2007_2014_list)
+rm(deaths_serious_emergency_conditions, extract1_2007_2014, extract1_2007_2014_list)
 gc()
 
 
@@ -166,10 +166,10 @@ new_age_labels <- c("[0,1)", "[1,5)", "[5,10)", "[10,15)", "[15,20)", "[20,25)",
 extract2_2007_2014[, age := new_age_labels[match(age, old_age_labels)]]
 
 # Collapse data based on lsoa/sex/age/place/underlying_cause/month
-mortality_all_chapters <- extract2_2007_2014[, .(deaths=sum(deaths)), by=.(LSOA, sex, age, place_of_death, death_underlying_cause, yearmonth)]
+deaths_all_chapters <- extract2_2007_2014[, .(deaths=sum(deaths)), by=.(LSOA, sex, age, place_of_death, death_underlying_cause, yearmonth)]
 
 # Save the data
-save(mortality_all_chapters, file = "data/ons mortality (conditions by chapter).Rda")
+save(deaths_all_chapters, file = "data/ons deaths (conditions by chapter).Rda")
 
 
 # Check data looks as we might expect -------------------------------------
