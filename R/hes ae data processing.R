@@ -1,9 +1,10 @@
-
 library(data.table)
+library(ggplot2)
+library(lubridate)
 
 # Function to read in annual AE HES data and convert to annual attendances by procode/lsoa/month
 
-prepare_HES_AE_count_data <- function() {
+save_HES_AE_attendances_data <- function() {
 
   load(file = "data/DB settings read.rda")
 
@@ -39,7 +40,7 @@ prepare_HES_AE_count_data <- function() {
   sql_query_select <- paste0("SELECT procode3, lsoa01, aedepttype, yearmonth, attendances ",
     "FROM admissions_by_trust_lsoa_month ",
     "WHERE row > ", offset, " AND row <= ", offset + limit, ";")
-  admissions_by_trust_lsoa_month <- DBI::dbGetQuery(db_conn, sql_query_select)
+  attendances_by_trust_lsoa_month <- DBI::dbGetQuery(db_conn, sql_query_select)
 
   # Need to call gc() to clear up Java heap space
   gc()
@@ -51,7 +52,7 @@ prepare_HES_AE_count_data <- function() {
     sql_query_select <- paste0("SELECT procode3, lsoa01, aedepttype, yearmonth, attendances ",
       "FROM admissions_by_trust_lsoa_month ",
       "WHERE row > ", offset, " AND row <= ", offset + limit, ";")
-    admissions_by_trust_lsoa_month <- rbind(admissions_by_trust_lsoa_month, DBI::dbGetQuery(db_conn, sql_query_select))
+    attendances_by_trust_lsoa_month <- rbind(attendances_by_trust_lsoa_month, DBI::dbGetQuery(db_conn, sql_query_select))
     gc()
     offset <- offset + limit
   }
@@ -60,13 +61,57 @@ prepare_HES_AE_count_data <- function() {
   DBI::dbDisconnect(db_conn)
   db_conn <- NULL
 
-  admissions_by_trust_lsoa_month <- data.table::data.table(admissions_by_trust_lsoa_month)
+  # Convert to data.table
+  attendances_by_trust_lsoa_month <- data.table::data.table(attendances_by_trust_lsoa_month)
 
-  admissions_by_trust_lsoa_month1 <- data.table::dcast(admissions_by_trust_lsoa_month, procode3 + lsoa01 + yearmonth ~ aedepttype, fill = 0, value.var = "attendances")
-  data.table::setnames(admissions_by_trust_lsoa_month1, c("01", "99"), c("attendances_type1", "attendances_unknown"))
-
-  admissions_by_trust_lsoa_month1[, .(attendances_type1 = sum(attendances_type1), attendances_unknown = sum(attendances_unknown)), by = yearmonth]
-  # aedepttype not accurately recorded before Apr 2010
+  # save data
+  save(attendances_by_trust_lsoa_month, file = "data/attendances by trust lsoa month.Rda", compress = "xz")
 }
 
 
+
+
+# ## Data quality checks
+# # Completeness of aedepttype
+# attendances_by_trust_month <- attendances_by_trust_lsoa_month[, .(attendances = sum(attendances)), by = .(procode3, yearmonth, aedepttype)]
+# trusts <- attendances_by_trust_month[, .(first_appearance = min(yearmonth), last_appearance = max(yearmonth)), by = .(procode3, aedepttype)]
+# load("data/site data.Rda")
+#
+# site_data_select <- unique(site_data[, .(trust_code, is_intervention)])
+#
+# plot.data <- attendances_by_trust_month[, .(attendances, yearmonth, procode3, aedepttype, trust_of_interest = (procode3 %in% site_data_select$trust_code))]
+# plot.data[, yearmonth := as.Date(fast_strptime(paste0(yearmonth, "-01"), format = "%Y-%m-%d"))]
+#
+# plot.data1 <- plot.data[, .(attendances = sum(attendances)), by = .(yearmonth, trust_of_interest, aedepttype)]
+#
+#
+# ggplot(plot.data1[, .(attendances = sum(attendances)), by = .(yearmonth, aedepttype)], aes(x = yearmonth, y = attendances, colour = aedepttype)) +
+#   ggtitle("A&E attendances by month\n(split by AE department type)") +
+#   geom_line(size = 1) +
+#   scale_x_date(name = "month", date_breaks = "3 months", date_labels = "%b %Y", limits = c(as.Date("2007-04-01"), NA), expand = c(0, 15)) +
+#   scale_y_continuous(labels = scales::comma) +
+#   theme(axis.text.x = element_text(face="bold", angle=90, hjust=0.0, vjust=0.3))
+#
+# ggplot(plot.data1[trust_of_interest == TRUE], aes(x = yearmonth, y = attendances, colour = aedepttype)) +
+#   ggtitle("A&E attendances by month for intervention/control NHS Trust \n(split by AE department type)") +
+#   geom_line(size = 1) +
+#   scale_x_date(name = "month", date_breaks = "3 months", date_labels = "%b %Y", limits = c(as.Date("2007-04-01"), NA), expand = c(0, 15)) +
+#   scale_y_continuous(labels = scales::comma) +
+#   theme(axis.text.x = element_text(face="bold", angle=90, hjust=0.0, vjust=0.3))
+#
+# plot.data2 <- rbind(plot.data1[, .(attendances = sum(attendances), only_trusts_of_interest = FALSE), by = .(yearmonth)], plot.data1[trust_of_interest == TRUE, .(attendances = sum(attendances), only_trusts_of_interest = TRUE), by = .(yearmonth)])
+# ggplot(plot.data2, aes(x = yearmonth, y = attendances, colour = only_trusts_of_interest)) +
+#   ggtitle("Total A&E attendances by month\n(all A&Es vs only intervention/control NHS Trusts)") +
+#   geom_line(size = 1) +
+#   scale_x_date(name = "month", date_breaks = "3 months", date_labels = "%b %Y", limits = c(as.Date("2007-04-01"), NA), expand = c(0, 15)) +
+#   scale_y_continuous(labels = scales::comma) +
+#   theme(axis.text.x = element_text(face="bold", angle=90, hjust=0.0, vjust=0.3))
+#
+# plot.data3 <- merge(plot.data[trust_of_interest == TRUE, ], site_data_select, by.x = "procode3", by.y = "trust_code")
+# ggplot(plot.data3[, .(attendances = sum(attendances)), by = .(yearmonth, is_intervention)], aes(x = yearmonth, y = attendances, colour = is_intervention)) +
+#   ggtitle("Total A&E attendances by month for intervention/control NHS Trusts only\n(split by intervention or control)") +
+#   geom_line(size = 1) +
+#   geom_vline(xintercept = as.integer(as.Date(paste0(c("2009-03", "2009-10", "2010-08", "2011-04", "2011-08"), "-01")))) +
+#   scale_x_date(name = "month", date_breaks = "3 months", date_labels = "%b %Y", limits = c(as.Date("2007-04-01"), NA), expand = c(0, 15)) +
+#   scale_y_continuous(labels = scales::comma) +
+#   theme(axis.text.x = element_text(face="bold", angle=90, hjust=0.0, vjust=0.3))
