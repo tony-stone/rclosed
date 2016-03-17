@@ -30,14 +30,5 @@ travel_time_data[, ':=' (
   destinationid = NULL,
   DestPostcode = NULL)]
 
-# Some entries have a travel time of 10^7minutes (meaning origin and destination not connected), set these to NA
-travel_time_data[travel_time == 10000000, travel_time := NA]
-
 # Save DfT data
 save(travel_time_data, file = "data/dft travel times.Rda")
-
-# # Check how many LSOAs did not have any valid travel time
-# # - this is due to DfT software incorrectly recording that origin (LSOA) is not connected to any specified destination (A&E / ED)
-# test <- suppressWarnings(travel_time_data[, .(min_time = as.double(min(travel_time, na.rm = TRUE))), by=.(LSOA, year)])
-# test[min_time == Inf, .N, by = year]
-# saveRDS(test[min_time == Inf, .(LSOA, year)], "LSOAs missing travel time.Rds")
