@@ -12,48 +12,23 @@ library(openxlsx)
 
 # Read in and clean up data -----------------------------------------------
 
-# Read in datasets
-years <- c(2009L, 2011L, 2015L)
-
-travel_time_data_list <- lapply(years, function(yr) {
-  data.table(read.xlsx("data-raw/DfT Travel time data/AEFinal.xlsx", sheet = paste0("AE", yr, "TopTen"), startRow = 2L, colNames = FALSE))[, year := yr]
+# Read in 2009 and 2011 datasets only (don't need 2015 dataset)
+travel_time_data_list <- lapply(c(2009L, 2011L), function(int_year) {
+  data.table(read.xlsx("data-raw/DfT Travel time data/AEFinal.xlsx", sheet = paste0("AE", int_year, "TopTen"), startRow = 1, colNames = TRUE))[, year := int_year]
 })
-
-
-# Correct for labelling error in 2015 data --------------------------------
-# For 2015 dataset, DfT did not attach value labels to the EDs.
-# However, originid is equal to the row number (minus 1, due to header) of the "British A&E config 2015" file I sent to DfT.
-
-# Read in "British A&E config 2015" file
-british_AE_config_2015 <- fread("data-raw/DfT Travel time data/British A&E config 2015.csv", sep = ",", header = TRUE, colClasses = "character")
-british_AE_config_2015[, c("id", "easting", "northing") := list(as.numeric(row.names(british_AE_config_2015)), NULL, NULL)]
-
-# set join key on each table
-setkey(travel_time_data_list[[3]], X4)
-setkey(british_AE_config_2015, id)
-
-# Do join
-travel_time_data_list[[3]] <- british_AE_config_2015[travel_time_data_list[[3]]]
-
-# Tidy up so 2015 data has same columns and column order as 2009 and 2011 data.
-travel_time_data_list[[3]][, c("X5", "X6") := NULL]
-setcolorder(travel_time_data_list[[3]], c("X1", "X2", "X3", "id", "site.name", "postcode", "year"))
-
-
-# Combine datasets --------------------------------------------------------
 
 # Bind all the datasets together
 travel_time_data <- rbindlist(travel_time_data_list)
 
 # Use more meaningful field names
-setnames(travel_time_data, c("origin_id", "LSOA", "travel_time", "destination_id", "destination", "destination_postcode", "year"))
+setnames(travel_time_data, c("name", "totaljourneytime", "Destination"), c("LSOA", "travel_time", "destination"))
 
 # Set data types and remove unnecessary fields
 travel_time_data[, ':=' (
   travel_time = as.integer(travel_time),
-  origin_id = NULL,
-  destination_id = NULL,
-  destination_postcode = NULL)]
+  originid = NULL,
+  destinationid = NULL,
+  DestPostcode = NULL)]
 
 # Some entries have a travel time of 10^7minutes (meaning origin and destination not connected), set these to NA
 travel_time_data[travel_time == 10000000, travel_time := NA]
