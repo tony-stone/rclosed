@@ -21,7 +21,7 @@ travel_time_data_list <- lapply(c(2009L, 2011L), function(int_year) {
 travel_time_data <- rbindlist(travel_time_data_list)
 
 # Use more meaningful field names
-setnames(travel_time_data, c("name", "totaljourneytime", "Destination"), c("LSOA", "travel_time", "destination"))
+setnames(travel_time_data, c("name", "totaljourneytime", "Destination"), c("lsoa", "travel_time", "destination"))
 
 # Set data types and remove unnecessary fields
 travel_time_data[, ':=' (
@@ -30,5 +30,8 @@ travel_time_data[, ':=' (
   destinationid = NULL,
   DestPostcode = NULL)]
 
+# If destination is unconnected (ie travel_time = 10M) set to NA)
+travel_time_data[travel_time == 10000000, travel_time := NA]
+
 # Save DfT data
-save(travel_time_data, file = "data/dft travel times.Rda")
+save(travel_time_data, file = "data/dft travel times.Rda", compress = "bzip2")
