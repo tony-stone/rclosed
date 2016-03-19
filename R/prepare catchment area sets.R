@@ -43,13 +43,15 @@ reshapeData <- function(data) {
 
   # Convert to wide form (this handles LSOAs with no second destination) and identify ties
   top2_destinations_by_lsoa <- dcast(data, lsoa + N_denominator + data_source + ref_date + period_lenth ~ destination_rank, value.var = c("N", "destination", "unique_code"), fill = 0L)
-  top2_destinations_by_lsoa[, ':=' (tied = FALSE,
-    unique_code_2 = NULL)]
+  top2_destinations_by_lsoa[, tied := FALSE]
   top2_destinations_by_lsoa[N_1 == N_2, ':=' (tied = TRUE,
     destination_1 = NA,
     destination_2 = NA,
-    unique_code_1 = NA)]
-  top2_destinations_by_lsoa[N_2 == 0, destination_2 := NA]
+    unique_code_1 = NA,
+    unique_code_2 = NA
+    )]
+  top2_destinations_by_lsoa[N_2 == 0, ':=' (destination_2 = NA,
+    unique_code_2 = NA)]
 
 
   # Calc fraction of attendances at any destination from this LSOA, to the specific destination; diff between volume between first and second destination (as fraction); and remove unnecessary fields
@@ -61,10 +63,11 @@ reshapeData <- function(data) {
   # Attach Trust details
   load("data/site data.Rda")
   top2_destinations_by_lsoa <- merge(top2_destinations_by_lsoa, site_data, by.x = "unique_code_1", by.y = "unique_code", all.x = TRUE)
+  top2_destinations_by_lsoa <- merge(top2_destinations_by_lsoa, site_data[, .(unique_code, town)], by.x = "unique_code_2", by.y = "unique_code", all.x = TRUE)
 
   # Sort names
   var_names <- c("N", "unique_code", "destination")
-  setnames(top2_destinations_by_lsoa, paste0(var_names, "_1"), var_names)
+  setnames(top2_destinations_by_lsoa, c(paste0(var_names, "_1"), "town.x", "town.y"), c(var_names, "town", "town_2"))
 
   return(top2_destinations_by_lsoa)
 }
@@ -93,17 +96,14 @@ generateHESCatchmentAreaSets <- function() {
   rm(attendances_by_trust_lsoa_month)
   gc()
 
-  # Creat catchment areas
+  # Create catchment areas
   catchment_area_sets_list <- list()
   for(period_length in seq(6, 24, 6)) {
     catchment_area_sets_list <- c(catchment_area_sets_list, lapply(intervention_dates, genFPPAreaSets, data_src = attendances_by_month_destination_lsoa, period_length_months = period_length))
   }
+
   # Bind data together
   hes_ae_catchment_areas <- rbindlist(catchment_area_sets_list)
-
-  # Free up memory, remove unnecessary vars
-  rm(catchment_area_sets_list)
-  gc()
 
   # Add source field
   hes_ae_catchment_areas[, data_source := "HES A&E"]
@@ -124,6 +124,7 @@ generateHESCatchmentAreaSets <- function() {
   hes_ae_catchment_areas[destination == "NM1", trust_name.x := "WEST LANCASHIRE HEALTHCARE PARTNERSHIP COMMUNITY CIC"]
   hes_ae_catchment_areas[destination_2 == "NM1", trust_name.y := "WEST LANCASHIRE HEALTHCARE PARTNERSHIP COMMUNITY CIC"]
 
+  # Make replacement
   hes_ae_catchment_areas[, ':=' (destination = trust_name.x,
     destination_2 = trust_name.y,
     trust_name.x = NULL,
@@ -186,6 +187,9 @@ generateDfTCatchmentAreaSets <- function() {
   dft_catchment_areas[year == 2011 & lsoa == "E01031268", destination := "warwick"]
   dft_catchment_areas[year == 2011 & lsoa == "E01019313", destination := "cumberland infirmary"]
 
+  # Keep only the LSOAs for which we have data (some do not due to DfT data source)
+  dft_catchment_areas <- dft_catchment_areas[!is.na(destination), ]
+
   # Add data source attribution and method
   dft_catchment_areas[, ':=' (data_source = "DfT",
     ref_date = as.Date(paste0(year, "-01-01")),
@@ -195,7 +199,7 @@ generateDfTCatchmentAreaSets <- function() {
   # Attach names for intervention sites
   load("data/site data.Rda")
   dft_catchment_areas <- merge(dft_catchment_areas, site_data[, .(dft_name, dft_year, unique_code)], by.x = c("destination", "ref_date"), by.y = c("dft_name", "dft_year"), all.x = TRUE)
-data <- dft_catchment_areas
+
   # Convert to wide format
   dft_catchment_areas <- reshapeData(dft_catchment_areas)
 
