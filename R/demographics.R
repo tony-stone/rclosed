@@ -45,7 +45,7 @@ getPopulationPyramid <- function(population_data, locality) {
   return(pyramid)
 }
 
-getDemographics <- function(site, cm_data_source, cm_ref_date, cm_period_length, cm_threshold = 0, population_data, cm_data, site_data) {
+getDemographics <- function(site, site_data, population_data, cm_data, cm_data_source, cm_period_length = 12, cm_threshold = 0) {
 
   # Pull up the sites details
   site_details <- site_data[unique_code == site]
@@ -54,18 +54,27 @@ getDemographics <- function(site, cm_data_source, cm_ref_date, cm_period_length,
   ref_year <- as.POSIXlt(site_details[, intervention_date])$year + 1900
 
   # Get catchment area LSOAs
-  lsoas <- cm_data[data_source == cm_data_source & ref_date == cm_ref_date & period_length == cm_period_length & frac_to_destination >= cm_threshold, lsoa]
+  if(cm_data_source == "DfT") {
+    lsoas <- cm_data[data_source == cm_data_source & frac_to_destination >= cm_threshold, lsoa]
+    txt_to_pass <- paste0(site_details$town, " [by DfT]")
+  } else {
+    lsoas <- cm_data[data_source == cm_data_source & period_length == cm_period_length & frac_to_destination >= cm_threshold, lsoa]
+    txt_to_pass <- paste0(site_details$town, " [by ", cm_data_source, " ", cm_period_length, "months]")
+  }
+
 
   # Restrict population data to the years and LSOAs of our catchment area
   pop_data <- population_data[LSOA01 %in% lsoas & year == ref_year]
 
   # return plot
-  return(getPopulationPyramid(pop_data, site_details$town))
+  return(getPopulationPyramid(pop_data, txt_to_pass))
 }
 
 load("data/site data.Rda")
 load("data/catchment area sets.Rda")
 load("data/2001-census lsoa annual population estimates 2006-2014.Rda")
 
-print(getPopulationPyramid(pop_data, "bla"))
+sd <- copy(site_data)
 
+out <- getDemographics("RCCSG", sd, LSOA2001_population_data_grouped, catchment_area_sets, "HES A&E")
+suppressWarnings(print(out))

@@ -29,7 +29,7 @@ genFPPAreaSets <- function(end_date_exc, data_src, period_length_months = 12) {
 
   # Attach intervention_date and period_length
   top2_destinations_by_lsoa[, ':=' (ref_date = end_date_exc,
-    period_lenth = period_length_months)]
+    period_length = period_length_months)]
 
   return(top2_destinations_by_lsoa)
 }
@@ -42,7 +42,7 @@ genFPPAreaSets <- function(end_date_exc, data_src, period_length_months = 12) {
 reshapeData <- function(data) {
 
   # Convert to wide form (this handles LSOAs with no second destination) and identify ties
-  top2_destinations_by_lsoa <- dcast(data, lsoa + N_denominator + data_source + ref_date + period_lenth ~ destination_rank, value.var = c("N", "destination", "unique_code"), fill = 0L)
+  top2_destinations_by_lsoa <- dcast(data, lsoa + N_denominator + data_source + ref_date + period_length ~ destination_rank, value.var = c("N", "destination", "unique_code"), fill = 0L)
   top2_destinations_by_lsoa[, tied := FALSE]
   top2_destinations_by_lsoa[N_1 == N_2, ':=' (tied = TRUE,
     destination_1 = NA,
@@ -128,7 +128,8 @@ generateHESCatchmentAreaSets <- function() {
   hes_ae_catchment_areas[, ':=' (destination = trust_name.x,
     destination_2 = trust_name.y,
     trust_name.x = NULL,
-    trust_name.y = NULL)]
+    trust_name.y = NULL,
+    ref_data = NULL)]
 
   return(hes_ae_catchment_areas)
 }
@@ -193,7 +194,7 @@ generateDfTCatchmentAreaSets <- function() {
   # Add data source attribution and method
   dft_catchment_areas[, ':=' (data_source = "DfT",
     ref_date = as.Date(paste0(year, "-01-01")),
-    period_lenth = as.integer(NA),
+    period_length = as.integer(NA),
     year = NULL)]
 
   # Attach names for intervention sites
@@ -202,6 +203,8 @@ generateDfTCatchmentAreaSets <- function() {
 
   # Convert to wide format
   dft_catchment_areas <- reshapeData(dft_catchment_areas)
+
+  dft_catchment_areas[, ref_data := NULL]
 
   return(dft_catchment_areas)
 }
