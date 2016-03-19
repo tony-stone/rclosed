@@ -121,7 +121,7 @@ gc()
 persons_2006_2014_long <- melt(persons_2006_2014, id=c("LSOA11CD", "year", "sex"), measure=patterns("^m"), variable.name="age", value.name="population", variable.factor=FALSE)
 
 # Remove data tables we have finished with
-rm(persons_2006_2014, persons_2006_2014_long)
+rm(persons_2006_2014)
 gc()
 
 # Transform age variable into integer
@@ -129,14 +129,17 @@ persons_2006_2014_long[age == "m90plus", age := "m90"]
 persons_2006_2014_long[, age := as.integer(substr(age, 2, nchar(age)))]
 
 # Categorise age into ESP2013 age bands
-persons_2006_2014_long[, age_cat := as.character(cut(age, c(0, 1, seq(5, 95, 5)), right = FALSE))]
+persons_2006_2014_long[, age_cat := cut(age, c(0, 1, seq(5, 95, 5)), right = FALSE)]
 
-# Slight mod to age factor labels
-persons_2006_2014_long[age_cat == "[90,95)", age_cat := "[90,Inf)"]
+# Slight mod to age_cat factor labels
+levels(persons_2006_2014_long$age_cat)[levels(persons_2006_2014_long$age_cat) == "[90,95)"] <- "[90,Inf)"
 
 # Sum ages by LSOA11CD, year, sex, age_cat
 persons_2006_2014_long_grouped <- persons_2006_2014_long[, .(population = sum(population1)), by=.(LSOA11CD, year, sex, age_cat)]
 
+# Remove data tables we have finished with
+rm(persons_2006_2014_long)
+gc()
 
 # Convert population estimates from LSOA11 to LSOA01 ----------------------
 # - convert population estimates from 2011-census based LSOAs to 2001-census based LSOAs
@@ -192,7 +195,7 @@ rm(LSOA2001_population_data)
 gc()
 
 # Save our annual 2006 to 2014 estimates
-save(LSOA2001_population_data_grouped, file = "data/2001-census lsoa annual population estimates 2006-2014.Rda")
+save(LSOA2001_population_data_grouped, file = "data/2001-census lsoa annual population estimates 2006-2014.Rda", compress = "bzip2")
 
 # Generate monthly population estimates (by linear interpolation) -------------
 # Period Jan 2007 to Mar 2014
@@ -201,15 +204,17 @@ save(LSOA2001_population_data_grouped, file = "data/2001-census lsoa annual popu
 #load("data/2001-census lsoa annual population estimates 2006-2014.rda")
 
 # Make the data wide form and give valid field names
+LSOA2001_population_data_grouped[, year := paste0("y", year)]
 LSOA2001_population_data_wide <- dcast(LSOA2001_population_data_grouped, LSOA01+sex+age_cat~year, value.var="population")
-setnames(LSOA2001_population_data_wide, as.character(2006:2014), paste0("y", 2006:2014))
 
 # Remove data tables we have finished with
 rm(LSOA2001_population_data_grouped)
 gc()
 
 # Function to create an expression which will add new fields in datatable linearly interpolating annual population data to monthly
-addMonthlyPopulationEstimate <- function(col_name, year_a, time_point) eval(parse(text = paste0("LSOA2001_population_data_wide[,", col_name, " := y", year_a, " + (y", year_a + 1, "-y", year_a, ") / 12 * ", time_point, "]")))
+addMonthlyPopulationEstimate <- function(col_name, year_a, time_point) {
+  eval(parse(text = paste0("LSOA2001_population_data_wide[,", col_name, " := y", year_a, " + (y", year_a + 1, "-y", year_a, ") / 12 * ", time_point, "]")))
+}
 
 ### Define the arguments to pass to the above function
 # Define time points of interest. Period 1 is p200701 (Jan 2007); Period 87 is p201403 (March 2014)
