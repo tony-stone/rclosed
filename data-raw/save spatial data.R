@@ -1,8 +1,7 @@
 library(data.table)
-library(maptools)
+library(rgdal)
 
 # Projection strings
-OSGB36_projection_str <- "+proj=tmerc +lat_0=49 +lon_0=-2 +k=0.9996012717 +x_0=400000 +y_0=-100000 +ellps=airy +towgs84=446.448,-125.157,542.06,0.15,0.247,0.842,-20.489 +units=m +vunits=m +no_defs"
 WGS84_projection_str <- "+proj=longlat +ellps=WGS84 +datum=WGS84 +no_defs"
 
 
@@ -29,21 +28,48 @@ ae_site_spatial_data <- spTransform(site_spatial_data, WGS84_projection_str)
 # Save
 save(ae_site_spatial_data, file = "data/ae site spatial data.Rda", compress = "xz")
 
+# Remove from memory
+rm(site_spatial_data, ae_site_spatial_data)
+gc()
 
 
-# ONS LSOA 2001 data ------------------------------------------------------
+# ONS LSOA 2001 boundary data ---------------------------------------------
 
-lsoa_spatial_data <- readShapePoly("data-raw/geography data/Boundaries/Lower_layer_super_output_areas_(E+W)_2001_Boundaries_(Generalised_Clipped)_V2/LSOA_2001_EW_BGC_V2.shp",
-  proj4string=CRS(OSGB36_projection_str))
+lsoa_boundary_data_raw <- readOGR("data-raw/geography data/Boundaries/Lower_layer_super_output_areas_(E+W)_2001_Boundaries_(Generalised_Clipped)_V2", "LSOA_2001_EW_BGC_V2")
+proj4string(lsoa_boundary_data_raw)
 
 # Keep only English LSOAs
-lsoa_spatial_data <- lsoa_spatial_data[substr(lsoa_spatial_data$LSOA01CD, 1, 1) == "E",]
+lsoa_boundary_data_raw <- lsoa_boundary_data_raw[substr(lsoa_boundary_data_raw$LSOA01CD, 1, 1) == "E",]
 
 # Transform to WGS84 coordinate system
-lsoa_spatial_data <- spTransform(lsoa_spatial_data, WGS84_projection_str)
+lsoa_boundary_data <- spTransform(lsoa_boundary_data_raw, WGS84_projection_str)
 
 # save
-save(lsoa_spatial_data, file = "data/lsoa spatial data.Rda", compress = "xz")
+save(lsoa_boundary_data, file = "data/lsoa boundary data.Rda", compress = "xz")
 
-# tools::resaveRdaFiles("data/lsoa spatial data.Rda")
-# tools::checkRdaFiles("data/lsoa spatial data.Rda")
+# Remove from memory
+rm(lsoa_boundary_data_raw, lsoa_boundary_data)
+gc()
+
+
+
+# ONS LSOA 2001 population weighted centroid data -------------------------
+
+lsoa_centroid_data_raw <- readOGR("data-raw/geography data/Centroids", "LSOA_2001_EW_PWC")
+
+# Keep only English LSOAs
+lsoa_centroid_data_raw <- lsoa_centroid_data_raw[substr(lsoa_centroid_data_raw$LSOA01CD, 1, 1) == "E",]
+
+# Transform to WGS84 coordinate system
+lsoa_centroid_data <- spTransform(lsoa_centroid_data_raw, WGS84_projection_str)
+
+# save
+save(lsoa_centroid_data, file = "data/lsoa centroids data.Rda", compress = "xz")
+
+# Remove from memory
+rm(lsoa_centroid_data_raw, lsoa_centroid_data)
+gc()
+
+# tools::checkRdaFiles("data/lsoa centroids data.Rda")
+# tools::resaveRdaFiles("data/lsoa centroids data.Rda")
+# tools::checkRdaFiles("data/lsoa centroids data.Rda")
