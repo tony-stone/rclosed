@@ -1,7 +1,5 @@
 library(data.table)
 
-
-
 # Generic fn for First Past the Post for HES and Amb data -----------------
 
 genFPPAreaSets <- function(end_date_exc, data_src, period_length_months = 12) {
@@ -13,6 +11,9 @@ genFPPAreaSets <- function(end_date_exc, data_src, period_length_months = 12) {
   # Calculate start date based on period
   start_date_inc <- end_date_exc
   lubridate::month(start_date_inc) <- lubridate::month(start_date_inc) - period_length_months
+
+  # Ambulance data does not always go back sufficiently far
+  if(end_date_exc <= min(data_src$yearmonth)) return(NA)
 
   # Keep only rows within the time period of interest and sum the volumes by distinct (destination, lsoa)-pairs over the time period of interest
   volume_data_summed_over_period <- data_src[yearmonth >= start_date_inc & yearmonth < end_date_exc, .(N = sum(volume)), by=c("destination", "lsoa")]
@@ -129,11 +130,58 @@ generateHESCatchmentAreaSets <- function() {
     destination_2 = trust_name.y,
     trust_name.x = NULL,
     trust_name.y = NULL,
-    ref_data = NULL)]
+    ref_date = NULL)]
 
   return(hes_ae_catchment_areas)
 }
 
+
+
+# Ambulance service catchment areas ---------------------------------------
+
+
+generateAmbulanceDataCatchmentAreaSets <- function() {
+
+  load("data/site data.Rda")
+
+  # get periods for which to calc catchment areas
+  intervention_dates <- unique(site_data[ambulance_service == "EMAS", intervention_date])
+
+  ## Load data
+  # EMAS
+  load("data/emas conveyances by site lsoa month.Rda")
+  # etc
+  # etc
+
+  # bind together service data
+  conveyances_by_site_lsoa_month <- rbindlist(list(emas_conveyances_by_site_lsoa_month))
+
+
+  # Create catchment areas
+  catchment_area_sets_list <- list()
+  amb_service <- "EMAS"
+#Add amb service for loop??? or filter on merge later?
+  for(period_length in seq(6, 24, 6)) {
+    catchment_area_sets_list <- c(catchment_area_sets_list, lapply(intervention_dates, genFPPAreaSets, data_src = conveyances_by_site_lsoa_month[service == amb_service, .(yearmonth, destination, lsoa, volume)], period_length_months = period_length))
+  }
+
+  # Bind data together
+  ambulance_data_catchment_areas <- rbindlist(catchment_area_sets_list[!is.na(catchment_area_sets_list)])
+
+  # Add source field
+  ambulance_data_catchment_areas[, data_source := "Ambulance Data"]
+
+  # Attach intervention/control details
+  ambulance_data_catchment_areas <- merge(ambulance_data_catchment_areas, site_data[, .(dft_name, intervention_date, unique_code)], by.x = c("destination", "ref_date"), by.y = c("dft_name", "intervention_date"), all.x = TRUE)
+
+  # Convert to wide format
+  ambulance_data_catchment_areas <- reshapeData(ambulance_data_catchment_areas)
+
+  # Remove ref date
+  ambulance_data_catchment_areas[, ref_date := NULL]
+
+  return(ambulance_data_catchment_areas)
+}
 
 
 
@@ -204,7 +252,7 @@ generateDfTCatchmentAreaSets <- function() {
   # Convert to wide format
   dft_catchment_areas <- reshapeData(dft_catchment_areas)
 
-  dft_catchment_areas[, ref_data := NULL]
+  dft_catchment_areas[, ref_date := NULL]
 
   return(dft_catchment_areas)
 }
@@ -218,9 +266,9 @@ generateDfTCatchmentAreaSets <- function() {
 createCatchmentAreas <- function() {
   dft_catchment_area_sets <- generateDfTCatchmentAreaSets()
   hes_catchment_area_sets <- generateHESCatchmentAreaSets()
-  # ambulance!
+  ambulance_data_catchment_area_sets <- generateAmbulanceDataCatchmentAreaSets()
 
-  catchment_area_sets <- rbind(dft_catchment_area_sets, hes_catchment_area_sets)
+  catchment_area_sets <- rbind(dft_catchment_area_sets, hes_catchment_area_sets, ambulance_data_catchment_area_sets)
 
   save(catchment_area_sets, file = "data/catchment area sets.Rda", compress = "xz")
 }
