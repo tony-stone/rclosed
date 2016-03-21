@@ -188,27 +188,33 @@ gc()
 LSOA2001_population_data[, population := population * attribution]
 
 # aggregate populations based on LSOA2001, age.band, sex and year
-LSOA2001_population_data_grouped <- LSOA2001_population_data[, .(population = sum(population)), by=.(LSOA01, year, sex, age_cat)]
+lsoa_population_annual_data <- LSOA2001_population_data[, .(population = sum(population)), by=.(LSOA01, year, sex, age_cat)]
 
 # Remove data tables we have finished with
 rm(LSOA2001_population_data)
 gc()
 
 # Save our annual 2006 to 2014 estimates
-save(LSOA2001_population_data_grouped, file = "data/2001-census lsoa annual population estimates 2006-2014.Rda", compress = "bzip2")
+save(lsoa_population_annual_data, file = "data/2001-census lsoa annual population estimates 2006-2014.Rda", compress = "bzip2")
+
+# # sense check (check against ONS timeseries of England population) - DONE, MATCHES.
+# lsoa_population_annual_data[, (pop = sum(population)), by = year]
+
+
+
 
 # Generate monthly population estimates (by linear interpolation) -------------
 # Period Jan 2007 to Mar 2014
 
-# Read data from intermediate save if necessary
+# Read annual data if necessary
 #load("data/2001-census lsoa annual population estimates 2006-2014.rda")
 
 # Make the data wide form and give valid field names
-LSOA2001_population_data_grouped[, year := paste0("y", year)]
-LSOA2001_population_data_wide <- dcast(LSOA2001_population_data_grouped, LSOA01+sex+age_cat~year, value.var="population")
+lsoa_population_annual_data[, year := paste0("y", year)]
+LSOA2001_population_data_wide <- dcast(lsoa_population_annual_data, LSOA01+sex+age_cat~year, value.var="population")
 
 # Remove data tables we have finished with
-rm(LSOA2001_population_data_grouped)
+rm(lsoa_population_annual_data)
 gc()
 
 # Function to create an expression which will add new fields in datatable linearly interpolating annual population data to monthly
@@ -233,20 +239,24 @@ for(i in 1:length(periods)) {
 LSOA2001_population_data_wide[, paste0("y", 2006:2014):=NULL]
 
 # Convert to long form
-LSOA2001_population_data_long <- melt( LSOA2001_population_data_wide, id=c("LSOA01", "sex", "age_cat"), measure=patterns("^p"), variable.name="yearmonth", value.name="population", variable.factor=FALSE)
+lsoa_population_monthly_data <- melt( LSOA2001_population_data_wide, id=c("LSOA01", "sex", "age_cat"), measure=patterns("^p"), variable.name="yearmonth", value.name="population", variable.factor=FALSE)
 
 # Remove data tables we have finished with
 rm(LSOA2001_population_data_wide)
 gc()
 
 # Adjust date field
-LSOA2001_population_data_long[, yearmonth := as.Date(fast_strptime(paste0(substr(yearmonth, 2, 5), "-", substr(yearmonth, 6, 7), "-01"), "%Y-%m-%d"))]
+lsoa_population_monthly_data[, yearmonth := as.Date(fast_strptime(paste0(substr(yearmonth, 2, 5), "-", substr(yearmonth, 6, 7), "-01"), "%Y-%m-%d"))]
 
 # set population field name
-setnames(LSOA2001_population_data_long, "population1", "population")
+setnames(lsoa_population_monthly_data, "population1", "population")
 
 # Save the monthly population data
-save(LSOA2001_population_data_long, file = "data/2001-census lsoa monthly population estimates 2007-01 to 2014-03.Rda")
+save(lsoa_population_monthly_data, file = "data/2001-census lsoa monthly population estimates 2007-01 to 2014-03.Rda", compress = "bzip2")
+
+# # sense check (check against ONS timeseries of England population) - DONE, MATCHES.
+# lsoa_population_monthly_data[yearmonth %in% as.Date(paste0(2007:2013, "-06-01")), (pop = sum(population)), by = yearmonth]
+
 
 
 # # Quick validation of data produced ------------------------------------------------
