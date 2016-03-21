@@ -19,9 +19,12 @@ getPopulationPyramid <- function(population_data, locality) {
   # For presentational reasons make male data negative
   population_data[sex == "male", population := -population]
 
+  # round total population to nearest 100 for display in plot title
+  total_population_rnd <- round(total_population, -2)
+
   # plot
   pyramid <- ggplot2::ggplot() +
-    ggplot2::ggtitle(paste0("Population structure for ", locality, " (", ref_yr, ")\n[population: ", format(total_population, scientific = FALSE, big.mark=","), "]")) +
+    ggplot2::ggtitle(paste0("Population structure for ", locality, " (", ref_yr, ")\n[population: ", format(total_population_rnd, scientific = FALSE, big.mark=","), "]")) +
     ggplot2::geom_bar(data = population_data[sex == "female"], ggplot2::aes(x = age_cat, y = population, fill = sex), stat = "identity") +
     ggplot2::geom_bar(data = population_data[sex == "male"], ggplot2::aes(x = age_cat, y = population, fill = sex), stat = "identity") +
     ggplot2::geom_text(data = unique(population_data[, .(age_cat, age_lab = as.character(age_cat))]), ggplot2::aes(x = age_cat, y = 0, label = age_lab), colour = "white", fontface = "bold", stat = "identity") +
@@ -45,26 +48,25 @@ getPopulationPyramid <- function(population_data, locality) {
   return(pyramid)
 }
 
-getDemographics <- function(site, site_data, population_data, cm_data, cm_data_source, cm_period_length = 12, cm_threshold = 0) {
+getDemographics <- function(site, dm_site_data, dm_population_data, dm_catchment_data, cm_data_source, cm_period_length = 12, cm_threshold = 0) {
 
   # Pull up the sites details
-  site_details <- site_data[unique_code == site]
+  site_details <- dm_site_data[unique_code == site]
 
   # Get year for which to get population data
   ref_year <- as.POSIXlt(site_details[, intervention_date])$year + 1900
 
   # Get catchment area LSOAs
   if(cm_data_source == "DfT") {
-    lsoas <- cm_data[data_source == cm_data_source & frac_to_destination >= cm_threshold, lsoa]
+    lsoas <- dm_catchment_data[!is.na(unique_code) & unique_code == site & data_source == cm_data_source & frac_to_destination >= cm_threshold, lsoa]
     txt_to_pass <- paste0(site_details$town, " [by DfT]")
   } else {
-    lsoas <- cm_data[data_source == cm_data_source & period_length == cm_period_length & frac_to_destination >= cm_threshold, lsoa]
+    lsoas <- dm_catchment_data[!is.na(unique_code) & unique_code == site & data_source == cm_data_source & period_length == cm_period_length & frac_to_destination >= cm_threshold, lsoa]
     txt_to_pass <- paste0(site_details$town, " [by ", cm_data_source, " ", cm_period_length, "months]")
   }
 
-
   # Restrict population data to the years and LSOAs of our catchment area
-  pop_data <- population_data[LSOA01 %in% lsoas & year == ref_year]
+  pop_data <- dm_population_data[LSOA01 %in% lsoas & year == ref_year]
 
   # return plot
   return(getPopulationPyramid(pop_data, txt_to_pass))
@@ -74,7 +76,5 @@ load("data/site data.Rda")
 load("data/catchment area sets.Rda")
 load("data/2001-census lsoa annual population estimates 2006-2014.Rda")
 
-sd <- copy(site_data)
-
-out <- getDemographics("RCCSG", sd, LSOA2001_population_data_grouped, catchment_area_sets, "HES A&E")
+out <- getDemographics("RXPBA", site_data, lsoa_population_annual_data, catchment_area_sets, "HES A&E")
 suppressWarnings(print(out))
