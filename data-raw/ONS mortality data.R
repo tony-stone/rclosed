@@ -46,20 +46,29 @@ extract1_2007_2014[(month == "10" | month == "11" | month == "12"), yearmonth :=
 # Set date, Remove year and month fields
 extract1_2007_2014[, c("yearmonth", "year", "month") := list(as.Date(fast_strptime(yearmonth, "%Y-%m-%d")), NULL, NULL )]
 
-## age - conform to ESP2013 age bands
-# combine 90-94, 95-99, and 100+ age bands
-extract1_2007_2014[(age == "95-99" | age == "100+"), age := "90-94"]
+## age
+# Fix Excel date conversion for ages in 2009
+extract1_2007_2014[age == "41913", age := "10-14"]
+extract1_2007_2014[age == "42461", age := "01-04"]
+extract1_2007_2014[age == "42618", age := "05-09"]
 
-# define our old and new labels
-old_age_labels <- c("<1", "01-04", "05-09", "10-14", "15-19", "20-24", "25-29", "30-34",
-                "35-39", "40-44", "45-49", "50-54", "55-59", "60-64", "65-69", "70-74",
-                "75-79", "80-84", "85-89", "90-94")
-new_age_labels <- c("[0,1)", "[1,5)", "[5,10)", "[10,15)", "[15,20)", "[20,25)", "[25,30)","[30,35)",
-                "[35,40)", "[40,45)", "[45,50)", "[50,55)", "[55,60)", "[60,65)", "[65,70)", "[70,75)",
-                "[75,80)", "[80,85)", "[85,90)", "[90,Inf)")
+# prepare data for conversion to ordered factor (via integer) and conform to ESP2013 age bands
+extract1_2007_2014[, age_new := age]
+extract1_2007_2014[age_new == "95-99" | age_new == "100+", age_new := "90"]
+extract1_2007_2014[age_new == "<1", age_new := "0"]
 
-# recode age
-extract1_2007_2014[, age := new_age_labels[match(age, old_age_labels)]]
+# Create (ordered) factor variable, age_cat  - which conforms to ESP2013 age bands
+extract1_2007_2014[, age_cat := cut(as.integer(substr(age_new, 1, 2)), c(0, 1, seq(5, 95, 5)), right = FALSE)]
+
+
+
+# # Check
+# data_check <- extract1_2007_2014[, .N, by = .(age, age_cat)]
+# data_check <- setorder(data_check, age_cat)
+# View(data_check)
+
+# Slight mod to age_cat factor labels
+levels(extract1_2007_2014$age_cat)[levels(extract1_2007_2014$age_cat) == "[90,95)"] <- "[90,Inf)"
 
 # Check data
 # data_check <- extract1_2007_2014[, .N, by = .(death_underlying_cause, death_secondary_cause)]
@@ -69,7 +78,7 @@ extract1_2007_2014[, age := new_age_labels[match(age, old_age_labels)]]
 # Categorise deaths -------------------------------------------------------
 
 # Firstly, replace "Falls" by "other" as underlying cause of death for those 75+
-extract1_2007_2014[((age == "[75,80)" | age == "[80,85)" | age == "[85,90)" | age == "[90,Inf)") & death_underlying_cause == "Falls"), death_underlying_cause := "other"]
+extract1_2007_2014[((age_cat == "[75,80)" | age_cat == "[80,85)" | age_cat == "[85,90)" | age_cat == "[90,Inf)") & death_underlying_cause == "Falls"), death_underlying_cause := "other"]
 
 # by default start with secondary cause of death
 extract1_2007_2014[, cause_of_death := death_secondary_cause]
@@ -87,7 +96,7 @@ extract1_2007_2014[, cause_of_death := death_secondary_cause]
 extract1_2007_2014[death_secondary_cause == "none" | death_secondary_cause == "other", cause_of_death := death_underlying_cause]
 
 # Collapse data based on newly coded cause_of_death field
-deaths_serious_emergency_conditions <- extract1_2007_2014[cause_of_death != "other", .(deaths = sum(deaths)), by=.(LSOA, sex, age, place_of_death, cause_of_death, yearmonth)]
+deaths_serious_emergency_conditions <- extract1_2007_2014[cause_of_death != "other", .(deaths = sum(deaths)), by=.(LSOA, sex, age_cat, place_of_death, cause_of_death, yearmonth)]
 
 ###############################################################################
 # # TEST - used to extract data to confirm actual logic used by MCRU report
@@ -101,75 +110,77 @@ deaths_serious_emergency_conditions <- extract1_2007_2014[cause_of_death != "oth
 ###############################################################################
 
 # Save the data
-save(deaths_serious_emergency_conditions, file = "data/ons deaths (16 serious emergency conditions).Rda")
+save(deaths_serious_emergency_conditions, file = "data/ons deaths (16 serious emergency conditions).Rda", compress = "bzip2")
 
 # Remove data
 rm(deaths_serious_emergency_conditions, extract1_2007_2014, extract1_2007_2014_list)
 gc()
 
 
-# Process all deaths ------------------------------------------------------
-
-## Read in data
-# Filenames for extract 2
-file_names_2 <- paste0("data-raw/ONS mortality data/Extract 2/", 2007:2014, ".xlsx")
-
-# Read in extract 2 data
-extract2_2007_2014_list <- lapply(file_names_2, function(fname) { data.table( read.xlsx(fname, sheet="Sheet1", startRow=2L, colNames=FALSE) ) } )
-
-# Bind list of data tables into single data table
-extract2_2007_2014 <- rbindlist(extract2_2007_2014_list)
-
-# set field names
-field_names <- c("deaths", "year", "month", "sex", "LSOA", "age", "place_of_death", "death_underlying_cause", "death_secondary_cause")
-setnames(extract2_2007_2014, field_names)
-
-# Fix field data types for processing later
-extract2_2007_2014[, ':=' (deaths = as.integer(deaths),
-  year = as.character(year),
-  month = as.character(month),
-  sex = as.character(sex),
-  place_of_death = as.character(place_of_death),
-  death_secondary_cause = NULL)]
-
-
-## Label data more meaningfully
-# sex (incidental note: looked at )
-extract2_2007_2014[sex == "2", sex := "female"]
-extract2_2007_2014[sex == "1", sex := "male"]
-
-# place of death
-extract2_2007_2014[place_of_death == "1", place_of_death := "NHS_hospital"]
-extract2_2007_2014[place_of_death == "2", place_of_death := "elsewhere"]
-
-
-## Consolidate date fields
-extract2_2007_2014[(month != "10" & month != "11" & month != "12"), yearmonth := paste0(year, "-0", month, "-01")]
-extract2_2007_2014[(month == "10" | month == "11" | month == "12"), yearmonth := paste0(year, "-", month, "-01")]
-
-# Set date, Remove year and month fields
-extract2_2007_2014[, c("yearmonth", "year", "month") := list(as.Date(fast_strptime(yearmonth, "%Y-%m-%d")), NULL, NULL )]
-
-## age - conform to ESP2013 age bands
-# combine 90-94, 95-99, and 100+ age bands
-extract2_2007_2014[(age == "95-99" | age == "100+"), age := "90-94"]
-
-# define our old and new labels
-old_age_labels <- c("<1", "01-04", "05-09", "10-14", "15-19", "20-24", "25-29", "30-34",
-  "35-39", "40-44", "45-49", "50-54", "55-59", "60-64", "65-69", "70-74",
-  "75-79", "80-84", "85-89", "90-94")
-new_age_labels <- c("[0,1)", "[1,5)", "[5,10)", "[10,15)", "[15,20)", "[20,25)", "[25,30)","[30,35)",
-  "[35,40)", "[40,45)", "[45,50)", "[50,55)", "[55,60)", "[60,65)", "[65,70)", "[70,75)",
-  "[75,80)", "[80,85)", "[85,90)", "[90,Inf)")
-
-# recode age
-extract2_2007_2014[, age := new_age_labels[match(age, old_age_labels)]]
-
-# Collapse data based on lsoa/sex/age/place/underlying_cause/month
-deaths_all_chapters <- extract2_2007_2014[, .(deaths=sum(deaths)), by=.(LSOA, sex, age, place_of_death, death_underlying_cause, yearmonth)]
-
-# Save the data
-save(deaths_all_chapters, file = "data/ons deaths (conditions by chapter).Rda")
+# BELOW IS NOT REQUIRE
+# # NEEDS UPDATING IF REQUIRED IN FUTURE
+# # Process all deaths ------------------------------------------------------
+#
+# ## Read in data
+# # Filenames for extract 2
+# file_names_2 <- paste0("data-raw/ONS mortality data/Extract 2/", 2007:2014, ".xlsx")
+#
+# # Read in extract 2 data
+# extract2_2007_2014_list <- lapply(file_names_2, function(fname) { data.table( read.xlsx(fname, sheet="Sheet1", startRow=2L, colNames=FALSE) ) } )
+#
+# # Bind list of data tables into single data table
+# extract2_2007_2014 <- rbindlist(extract2_2007_2014_list)
+#
+# # set field names
+# field_names <- c("deaths", "year", "month", "sex", "LSOA", "age", "place_of_death", "death_underlying_cause", "death_secondary_cause")
+# setnames(extract2_2007_2014, field_names)
+#
+# # Fix field data types for processing later
+# extract2_2007_2014[, ':=' (deaths = as.integer(deaths),
+#   year = as.character(year),
+#   month = as.character(month),
+#   sex = as.character(sex),
+#   place_of_death = as.character(place_of_death),
+#   death_secondary_cause = NULL)]
+#
+#
+# ## Label data more meaningfully
+# # sex (incidental note: looked at )
+# extract2_2007_2014[sex == "2", sex := "female"]
+# extract2_2007_2014[sex == "1", sex := "male"]
+#
+# # place of death
+# extract2_2007_2014[place_of_death == "1", place_of_death := "NHS_hospital"]
+# extract2_2007_2014[place_of_death == "2", place_of_death := "elsewhere"]
+#
+#
+# ## Consolidate date fields
+# extract2_2007_2014[(month != "10" & month != "11" & month != "12"), yearmonth := paste0(year, "-0", month, "-01")]
+# extract2_2007_2014[(month == "10" | month == "11" | month == "12"), yearmonth := paste0(year, "-", month, "-01")]
+#
+# # Set date, Remove year and month fields
+# extract2_2007_2014[, c("yearmonth", "year", "month") := list(as.Date(fast_strptime(yearmonth, "%Y-%m-%d")), NULL, NULL )]
+#
+# ## age - conform to ESP2013 age bands
+# # combine 90-94, 95-99, and 100+ age bands
+# extract2_2007_2014[(age == "95-99" | age == "100+"), age := "90-94"]
+#
+# # define our old and new labels
+# old_age_labels <- c("<1", "01-04", "05-09", "10-14", "15-19", "20-24", "25-29", "30-34",
+#   "35-39", "40-44", "45-49", "50-54", "55-59", "60-64", "65-69", "70-74",
+#   "75-79", "80-84", "85-89", "90-94")
+# new_age_labels <- c("[0,1)", "[1,5)", "[5,10)", "[10,15)", "[15,20)", "[20,25)", "[25,30)","[30,35)",
+#   "[35,40)", "[40,45)", "[45,50)", "[50,55)", "[55,60)", "[60,65)", "[65,70)", "[70,75)",
+#   "[75,80)", "[80,85)", "[85,90)", "[90,Inf)")
+#
+# # recode age
+# extract2_2007_2014[, age := new_age_labels[match(age, old_age_labels)]]
+#
+# # Collapse data based on lsoa/sex/age/place/underlying_cause/month
+# deaths_all_chapters <- extract2_2007_2014[, .(deaths=sum(deaths)), by=.(LSOA, sex, age, place_of_death, death_underlying_cause, yearmonth)]
+#
+# # Save the data
+# save(deaths_all_chapters, file = "data/ons deaths (conditions by chapter).Rda")
 
 
 # Check data looks as we might expect -------------------------------------
