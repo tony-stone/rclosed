@@ -129,8 +129,7 @@ generateHESCatchmentAreaSets <- function() {
   hes_ae_catchment_areas[, ':=' (destination = trust_name.x,
     destination_2 = trust_name.y,
     trust_name.x = NULL,
-    trust_name.y = NULL,
-    ref_date = NULL)]
+    trust_name.y = NULL)]
 
   return(hes_ae_catchment_areas)
 }
@@ -176,9 +175,6 @@ generateAmbulanceDataCatchmentAreaSets <- function() {
 
   # Convert to wide format
   ambulance_data_catchment_areas <- reshapeData(ambulance_data_catchment_areas)
-
-  # Remove ref date
-  ambulance_data_catchment_areas[, ref_date := NULL]
 
   return(ambulance_data_catchment_areas)
 }
@@ -251,8 +247,6 @@ generateDfTCatchmentAreaSets <- function() {
 
   # Convert to wide format
   dft_catchment_areas <- reshapeData(dft_catchment_areas)
-
-  dft_catchment_areas[, ref_date := NULL]
 
   return(dft_catchment_areas)
 }

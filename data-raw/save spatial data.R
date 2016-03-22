@@ -3,7 +3,7 @@ library(rgdal)
 
 # Projection strings
 WGS84_projection_str <- "+proj=longlat +ellps=WGS84 +datum=WGS84 +no_defs"
-
+OSGB36_projection_str <- "+proj=tmerc +lat_0=49 +lon_0=-2 +k=0.9996012717 +x_0=400000 +y_0=-100000 +datum=OSGB36 +units=m +no_defs +ellps=airy +towgs84=446.448,-125.157,542.060,0.1502,0.2470,0.8421,-20.4894"
 
 # A&E Sites ---------------------------------------------------------------
 
@@ -36,7 +36,6 @@ gc()
 # ONS LSOA 2001 boundary data ---------------------------------------------
 
 lsoa_boundary_data_raw <- readOGR("data-raw/geography data/Boundaries/Lower_layer_super_output_areas_(E+W)_2001_Boundaries_(Generalised_Clipped)_V2", "LSOA_2001_EW_BGC_V2")
-proj4string(lsoa_boundary_data_raw)
 
 # Keep only English LSOAs
 lsoa_boundary_data_raw <- lsoa_boundary_data_raw[substr(lsoa_boundary_data_raw$LSOA01CD, 1, 1) == "E",]
