@@ -6,4 +6,4 @@ setnames(nhs_postcode_directory, c("postcode", "pc_start", "pc_end", "easting", 
 nhs_postcode_directory[, ':=' (easting = as.integer(easting),
   northing = as.integer(northing))]
 
-save(nhs_postcode_directory, file = "data/ nhs postcode directory.Rda", compress = "xz")
+save(nhs_postcode_directory, file = "data/nhs postcode directory.Rda", compress = "xz")
