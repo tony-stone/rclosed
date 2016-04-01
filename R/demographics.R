@@ -48,33 +48,97 @@ getPopulationPyramid <- function(population_data, locality) {
   return(pyramid)
 }
 
-getDemographics <- function(site, dm_site_data, dm_population_data, dm_catchment_data, cm_data_source, cm_period_length = 12, cm_threshold = 0) {
 
-  # Pull up the sites details
-  site_details <- dm_site_data[unique_code == site]
+getCensusDemographics <- function(pop_data_2011) {
+  # read census data
+  load("data/census data.Rda")
 
-  # Get year for which to get population data
-  ref_year <- as.POSIXlt(site_details[, intervention_date])$year + 1900
+  # Collapse population data to LSOA level (i.e. collpase age_cat and sex)
+  pop_data_2011_summed <- pop_data_2011[, .(population = sum(population)), by = .(LSOA01)]
 
-  # Get catchment area LSOAs
-  if(cm_data_source == "DfT") {
-    lsoas <- dm_catchment_data[!is.na(unique_code) & unique_code == site & data_source == cm_data_source & frac_to_destination >= cm_threshold, lsoa]
-    txt_to_pass <- paste0(site_details$town, " [by DfT]")
-  } else {
-    lsoas <- dm_catchment_data[!is.na(unique_code) & unique_code == site & data_source == cm_data_source & period_length == cm_period_length & frac_to_destination >= cm_threshold, lsoa]
-    txt_to_pass <- paste0(site_details$town, " [by ", cm_data_source, " ", cm_period_length, "months]")
-  }
+  # Merge census data into relevant population data
+  census_demographics <- merge(pop_data_2011_summed, census_data, by.x = "LSOA01", by.y = "lsoa", all.x = TRUE)
 
-  # Restrict population data to the years and LSOAs of our catchment area
-  pop_data <- dm_population_data[LSOA01 %in% lsoas & year == ref_year]
+  # Calculate longterm ill and non-whites in catchment area in absolute numbers at LSOA level
+  census_demographics[, ':=' (longterm_illness = longterm_illness_pc * population,
+    non_white = non_white_pc * population)]
 
-  # return plot
-  return(getPopulationPyramid(pop_data, txt_to_pass))
+  # And as a percentage at catchment area level
+  return_data <- census_demographics[, .(longterm_illness_pc = sum(longterm_illness) / sum(population), non_white_pc = sum(non_white) / sum(population))][1, ]
+
+  # Population in top quintile of deprivation as percentage at catchment area level
+  imd_q1_population <- sum(census_demographics[imd_quintile == 1, population]) / sum(census_demographics$population) * 100
+
+  # Add IMD Q1 data
+  return_data[, imd_q1_pc := imd_q1_population]
+
+  return(return_data)
 }
 
-load("data/site data.Rda")
-load("data/catchment area sets.Rda")
-load("data/2001-census lsoa annual population estimates 2006-2014.Rda")
 
-out <- getDemographics("RXPBA", site_data, lsoa_population_annual_data, catchment_area_sets, "HES A&E")
-suppressWarnings(print(out))
+
+getDemographics <- function(site, catchment_area_set, site_info, pop_data_all) {
+
+  lsoas <- catchment_area_set[unique_code == site, lsoa]
+  intv_date <- site_info[unique_code == site, intervention_date]
+
+  ref_year <- as.POSIXlt(intv_date)$year + 1900
+  pop_data <- pop_data_all[LSOA01 %in% lsoas & year == ref_year]
+
+  # Get total population
+  total_pop <- as.integer(round(sum(pop_data$population)))
+
+  # Get total population rounded to hundreds
+  total_pop_rnd <- round(total_pop, -2)
+
+  # Get total population aged 65+ as percentage of total population
+  pop_65plus_pc <- sum(pop_data[age_cat %in% c("[65,70)", "[70,75)", "[75,80)", "[80,85)", "[85,90)", "[90,Inf)"), population]) / total_pop * 100
+
+  # Get non whites, longterm ill and imd
+  catchment_demography <- getCensusDemographics(pop_data_all[year == 2011 & LSOA01 %in% lsoas])
+
+  catchment_demography[, ':=' (unique_code = site,
+    total_population = total_pop_rnd,
+    population_65plus_pc = pop_65plus_pc)]
+
+  return(catchment_demography)
+}
+
+
+# main --------------------------------------------------------------------
+
+createDemographics <- function() {
+  # load data
+  load("data/site data.Rda")
+  load("data/catchment area set final.Rda")
+  load("data/2001-census lsoa annual population estimates 2006-2014.Rda")
+
+  # Pull up the sites details
+  sites <- site_data$unique_code
+
+  demographics_list <- lapply(sites, getDemographics, catchment_area_set = catchment_area_set_final, site_info = site_data, pop_data_all = lsoa_population_annual_data)
+
+  site_demographics <-  rbindlist(demographics_list)
+
+  setcolorder(site_demographics, c("unique_code", "total_population", "population_65plus_pc", "non_white_pc", "imd_q1_pc", "longterm_illness_pc"))
+
+  site_demographics <- merge(site_data[, .(unique_code, town, group, intervention_date)], site_demographics, by = "unique_code")
+
+  site_demographics[, ':=' (population_65plus_pc = round(population_65plus_pc, 1),
+    non_white_pc = round(non_white_pc, 1),
+    imd_q1_pc = round(imd_q1_pc, 1),
+    longterm_illness_pc = round(longterm_illness_pc, 1))]
+
+  setorder(site_demographics, "intervention_date")
+
+  save(site_demographics, file = "D:/site demographics.Rda")
+
+  write.table(site_demographics, "clipboard", sep = "\t", row.names = FALSE)
+
+  # return plot
+#
+#  lapply(sites, function(site) {  getPopulationPyramid(pop_data_all[LSOA01 %in% catchment_area_set[unique_code == site, lsoa] & year == as.POSIXlt(site_data[unique_code == site, intervention_date])$year + 1900], site_data[unique_code == site, town]))
+}
+
+
+getDemographics()

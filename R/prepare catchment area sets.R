@@ -262,9 +262,16 @@ createCatchmentAreas <- function() {
   hes_catchment_area_sets <- generateHESCatchmentAreaSets()
   ambulance_data_catchment_area_sets <- generateAmbulanceDataCatchmentAreaSets()
 
+  # All catchment areas
   catchment_area_sets <- rbind(dft_catchment_area_sets, hes_catchment_area_sets, ambulance_data_catchment_area_sets)
-
   save(catchment_area_sets, file = "data/catchment area sets.Rda", compress = "xz")
+
+  # Project group decided to use DfT catchment areas
+  catchment_area_set_final <- catchment_area_sets[data_source == "DfT" & !is.na(unique_code), .(lsoa, unique_code, time_to_destination = N, dose = diff_first_second, is_intervention)]
+  catchment_area_set_final[is_intervention == FALSE, dose := 0]
+  catchment_area_set_final[, is_intervention := NULL]
+
+  save(catchment_area_set_final, file = "data/catchment area set final.Rda", compress = "bzip2")
 }
 
 
