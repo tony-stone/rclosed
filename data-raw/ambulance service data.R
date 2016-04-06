@@ -1,4 +1,7 @@
 library(data.table)
+library(iotools)
+
+# EMAS --------------------------------------------------------------------
 
 emas_amb_data <- fread("data-raw/Ambulance service data/EMAS/ClosED.csv", sep = ",", header = TRUE, colClasses = "character", na.strings = "NULL")
 
@@ -37,3 +40,18 @@ emas_conveyances_by_site_lsoa_month[, service := "EMAS"]
 
 # save data
 save(emas_conveyances_by_site_lsoa_month, file = "data/emas conveyances by site lsoa month.Rda", compress = "bzip2")
+
+
+
+# YAS ---------------------------------------------------------------------
+
+YAS_pattern <- as.character(fread("data-raw/Ambulance service data/YAS/Apr 10 - Sep 10 Data.csv", sep = "?", nrows = 1L, header = FALSE, colClasses = "character"))
+YAS_num_cols <- length(gregexpr(pattern = "\t", YAS_pattern)[[1]]) + 1
+
+yas_amb_data <- data.table(input.file("data-raw/Ambulance service data/YAS/Apr 10 - Sep 10 Data.csv",  formatter = dstrsplit, col_types = rep("character", YAS_num_cols), sep = "\t"))
+
+yas_amb_data[, paste0("V", 38:39) := NULL]
+setnames(yas_amb_data, make.names(yas_amb_data[1,]))
+unique(yas_amb_data[, Journey.Type])
+
+
