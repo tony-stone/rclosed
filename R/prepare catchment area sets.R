@@ -198,39 +198,41 @@ generateDfTCatchmentAreaSets <- function() {
 
   ################################################################################
   # Identify lsoas we need to attach a destination to (due to not being connected to road network in DfT data)
-  # not_connected_lsoas <- dft_catchment_areas[is.na(destination), .(lsoa, year = paste0("y", year), is_not_connected = 1)]
-  # not_connected_lsoas <- dcast(not_connected_lsoas, lsoa ~ year, fill = 0, value.var = "is_not_connected")
-  # not_connected_cats <- c("2009 only", "2011 only", "2009 and 2011")
-  # not_connected_lsoas[, not_connected_cat := not_connected_cats[y2009 + 2 * y2011]]
-  # not_connected_lsoas[, c("y2009", "y2011") := NULL]
-  #
-  # # Load lsoas for which we have HES data for the residents
-  # load("data/lsoa 2001s in hes data.Rda")
-  #
-  # # Identify which of our unconnected lsoas lie in this area
-  # lsoas <- not_connected_lsoas$lsoa
-  # relevant_lsoas <- lsoas[lsoas %in% lsoas_in_hes_data]
-  #
-  # # Read in population weighted centroids (PWCs) for the lsoas and keep only the relavant PWCs
-  # lsoa_pwcs <- readShapePoints("data-raw/geography data/Centroids/lsoa_2001_EW_PWC.shp")
-  # lsoa_pwcs_selected <- lsoa_pwcs[lsoa_pwcs$lsoa01CD %in% relevant_lsoas, ]
-  # proj4string(lsoa_pwcs_selected) <- "+proj=tmerc +lat_0=49 +lon_0=-2 +k=0.9996012717 +x_0=400000 +y_0=-100000 +ellps=airy +towgs84=446.448,-125.157,542.06,0.15,0.247,0.842,-20.489 +units=m +vunits=m +no_defs"
-  #
-  # # Merge in data regarding for what years these lsoas were not connected
-  # lsoa_pwcs_selected <- merge(lsoa_pwcs_selected, unconnected.lsoas, by.x = "lsoa01CD", by.y = "lsoa")
-  #
-  # # Write to shp file
-  # writePointsShape(lsoa_pwcs_selected, "data/not connected relevant lsoa centroids")
+#   library(rgdal)
+#   not_connected_lsoas <- dft_catchment_areas[is.na(destination), .(lsoa, year = paste0("y", year), is_not_connected = 1)]
+#   not_connected_lsoas <- dcast(not_connected_lsoas, lsoa ~ year, fill = 0, value.var = "is_not_connected")
+#   not_connected_cats <- c("2009 only", "2011 only", "2009 and 2011")
+#   not_connected_lsoas[, not_connected_cat := not_connected_cats[y2009 + 2 * y2011]]
+#   not_connected_lsoas[, c("y2009", "y2011") := NULL]
+#
+#   # Load lsoas for which we have HES data for the residents
+#   load("data/lsoa 2001s in hes data.Rda")
+#
+#   # Identify which of our unconnected lsoas lie in this area
+#   lsoas <- not_connected_lsoas$lsoa
+#   relevant_lsoas <- lsoas[lsoas %in% lsoa01s_in_HES]
+#
+#   # Read in population weighted centroids (PWCs) for the lsoas and keep only the relavant PWCs
+#   lsoa_pwcs <- readOGR("data-raw/geography data/Centroids", "LSOA_2001_EW_PWC")
+#   lsoa_pwcs_selected <- lsoa_pwcs[lsoa_pwcs$LSOA01CD %in% relevant_lsoas, ]
+#
+#   # Merge in data regarding for what years these lsoas were not connected
+#   lsoa_pwcs_selected <- merge(lsoa_pwcs_selected, not_connected_lsoas, by.x = "LSOA01CD", by.y = "lsoa")
+#
+#   # Write to shp file
+#   writeOGR(lsoa_pwcs_selected, "data", "not connected relevant lsoa centroids", driver="ESRI Shapefile")
   #
   # Visually compare with catchment areas
   ################################################################################
 
 
   # Manual changes to (only relevant) catchment areas
-  dft_catchment_areas[year == 2009 & lsoa == "E01020292", destination := "north devon district"]
-  dft_catchment_areas[year == 2011 & lsoa == "E01031246", destination := "warwick"]
-  dft_catchment_areas[year == 2011 & lsoa == "E01031268", destination := "warwick"]
   dft_catchment_areas[year == 2011 & lsoa == "E01019313", destination := "cumberland infirmary"]
+  dft_catchment_areas[year == 2009 & lsoa == "E01031268", destination := "warwick"]
+
+  # Irrelevant correction
+  # dft_catchment_areas[year == 2009 & lsoa == "E01020292", destination := "north devon district"]
+  # dft_catchment_areas[year == 2011 & lsoa == "E01031246", destination := "warwick"]
 
   # Keep only the LSOAs for which we have data (some do not due to DfT data source)
   dft_catchment_areas <- dft_catchment_areas[!is.na(destination), ]
@@ -259,21 +261,21 @@ generateDfTCatchmentAreaSets <- function() {
 
 createCatchmentAreas <- function() {
   dft_catchment_area_sets <- generateDfTCatchmentAreaSets()
-  hes_catchment_area_sets <- generateHESCatchmentAreaSets()
-  ambulance_data_catchment_area_sets <- generateAmbulanceDataCatchmentAreaSets()
+  #hes_catchment_area_sets <- generateHESCatchmentAreaSets()
+  #ambulance_data_catchment_area_sets <- generateAmbulanceDataCatchmentAreaSets()
 
   # All catchment areas
-  catchment_area_sets <- rbind(dft_catchment_area_sets, hes_catchment_area_sets, ambulance_data_catchment_area_sets)
+  #catchment_area_sets <- rbind(dft_catchment_area_sets, hes_catchment_area_sets, ambulance_data_catchment_area_sets)
+  catchment_area_sets <- dft_catchment_area_sets
   save(catchment_area_sets, file = "data/catchment area sets.Rda", compress = "xz")
 
   # Project group decided to use DfT catchment areas
-  catchment_area_set_final <- catchment_area_sets[data_source == "DfT" & !is.na(unique_code), .(lsoa, unique_code, time_to_destination = N, dose = diff_first_second, is_intervention)]
-  catchment_area_set_final[is_intervention == FALSE, dose := 0]
-  catchment_area_set_final[, is_intervention := NULL]
+  catchment_area_set_final <- copy(catchment_area_sets[data_source == "DfT" & !is.na(unique_code) & tied == FALSE,
+    .(lsoa, town, group, intervention_date, site_type, time_to_ae_pre_intv = N, time_to_ae_post_intv = N + diff_first_second)])
+  catchment_area_set_final[site_type == "matched control" | site_type == "pooled control", time_to_ae_post_intv := time_to_ae_pre_intv]
 
-  save(catchment_area_set_final, file = "data/catchment area set final.Rda", compress = "bzip2")
+  save(catchment_area_set_final, file = "data/catchment area set final.Rda", compress = "xz")
 }
-
 
 
 # execute! ----------------------------------------------------------------
