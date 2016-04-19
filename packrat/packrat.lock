@@ -109,12 +109,6 @@ Source: CRAN
 Version: 0.6.9
 Hash: fd55d5a024f160fc001a5ece1e27782d
 
-Package: dplyr
-Source: CRAN
-Version: 0.4.3
-Hash: 35bc70760e4bbd3f4bc05fac3bbde3c3
-Requires: BH, DBI, R6, Rcpp, assertthat, lazyeval, magrittr
-
 Package: evaluate
 Source: CRAN
 Version: 0.8.3
@@ -185,11 +179,6 @@ Package: labeling
 Source: CRAN
 Version: 0.3
 Hash: ecf589b42cd284b03a4beb9665482d3e
-
-Package: lazyeval
-Source: CRAN
-Version: 0.1.10
-Hash: 9679f1ac7f6bc07bc79755f34cd15e1f
 
 Package: leaflet
 Source: CRAN
@@ -305,6 +294,12 @@ Source: CRAN
 Version: 0.9.5
 Hash: c47e8fb40e81162783fe1335a13a0ca3
 Requires: caTools, htmltools, knitr, yaml
+
+Package: roxygen2
+Source: CRAN
+Version: 5.0.1
+Hash: 0d13c15c5cd65dd83b58d190b54178ba
+Requires: Rcpp, brew, digest, stringi, stringr
 
 Package: rstudioapi
 Source: CRAN
