@@ -3,8 +3,8 @@ save_emergency_admissions_measure <- function() {
   db_conn <- connect2DB()
 
   tbl_name <- "emergency_admissions_by_diagnosis_site_lsoa_month"
-  add_logic <- "epiorder = '1' AND admimeth IN ('13', '21', '22', '23', '24', '25', '2A', '2B', '28')"
-  add_fields <- "admimeth, diag_01, diag_02, startage"
+  add_logic <- "epiorder = '1' AND admimeth IN ('21', '22', '23', '24', '25', '2A', '2B', '28')"
+  add_fields <- "admimeth, diag_01, diag_02, cause, startage"
 
   # Prepare query string to create temp table
   sql_create_tbl <- getSqlUpdateQuery("apc", tbl_name, add_logic, add_fields)
@@ -29,16 +29,16 @@ save_emergency_admissions_measure <- function() {
   # default to 'other'
   emergency_admissions_by_diagnosis_site_lsoa_month[, sub_measure := "other"]
 
-  # Create 1 character, 3 character and 4 character codes diagnosis codes
+  # Create 1 character, 3 character and 4 character codes diagnosis codes and 3 character cause code
   emergency_admissions_by_diagnosis_site_lsoa_month[, diag_4char := toupper(substr(diag_01, 1, 4))]
   emergency_admissions_by_diagnosis_site_lsoa_month[, diag_3char := substr(diag_4char, 1, 3)]
   emergency_admissions_by_diagnosis_site_lsoa_month[, diag_1char := substr(diag_4char, 1, 1)]
-
+  emergency_admissions_by_diagnosis_site_lsoa_month[, diag_cause := toupper(substr(cause, 1, 3))]
 
   # Create integer age variable
   emergency_admissions_by_diagnosis_site_lsoa_month[, age := as.integer(startage)]
   emergency_admissions_by_diagnosis_site_lsoa_month[age >= 7001 & age <= 7007, age := 0]
-  emergency_admissions_by_diagnosis_site_lsoa_month[age < 0 & age > 120, age := NA]
+  emergency_admissions_by_diagnosis_site_lsoa_month[age < 0 | age > 120, age := NA]
 
   # Hypoglycemia
   emergency_admissions_by_diagnosis_site_lsoa_month[sub_measure == "other" & (diag_3char %in% paste0("E", 10:15) | diag_4char %in% paste0("E", 161:162)), sub_measure := "hypoglycaemia"]
@@ -82,7 +82,7 @@ save_emergency_admissions_measure <- function() {
   # Falls (75+ years)
   falls_codes_digits <- expand.grid(d1 = 0:1, d2 = 0:9, stringsAsFactors = FALSE)
   falls_codes <- paste0("W", falls_codes_digits$d1, falls_codes_digits$d2)
-  emergency_admissions_by_diagnosis_site_lsoa_month[sub_measure == "other" & diag_3char %in% falls_codes & age >= 75L, sub_measure := "falls (75+ years)"]
+  emergency_admissions_by_diagnosis_site_lsoa_month[sub_measure == "other" & diag_cause %in% falls_codes & age >= 75L, sub_measure := "falls (75+ years)"]
 
   # collapse to attendances by (site, lsoa, month, avoidable condition)
   emergency_admissions_by_condition_site_lsoa_month <- emergency_admissions_by_diagnosis_site_lsoa_month[, .(value = sum(value)), by = .(procode, admimeth, lsoa, yearmonth, sub_measure)]
@@ -119,8 +119,6 @@ save_emergency_admissions_measure <- function() {
 }
 
 
-
-
 # bla <- ed_attendances_admitted_measure[sub_measure != "fraction admitted", .(value = sum(value)), by = .(sub_measure, town, yearmonth)]
 #
 # bla2 <- data.table::dcast(bla, town + yearmonth ~ sub_measure, value.var = "value")
@@ -136,8 +134,11 @@ save_emergency_admissions_measure <- function() {
 #   ggplot2::theme(axis.text.x = ggplot2::element_text(face="bold", angle=90, hjust=0.0, vjust=0.3))
 
 
-
-
-dcb <- connect2DB()
-getDistinctVals(dcb, "epiorder", "", "apc")
-
+#
+#
+# dcb <- connect2DB()
+# getDistinctVals(dcb, "epiorder", "", "apc")
+#
+#
+# library(data.table)
+# save_emergency_admissions_measure()

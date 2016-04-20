@@ -3,7 +3,7 @@ save_ed_attendances_measure <- function() {
   db_conn <- connect2DB()
 
   tbl_name <- "attendances_by_mode_trust_lsoa_month"
-  add_logic <- ""
+  add_logic <- "aeattendcat = '1' AND (aedeptype = '01' OR aedeptype = '99')"
   add_fields <- "aearrivalmode"
 
   # Prepare query string to create temp table
@@ -60,7 +60,8 @@ save_unnecessary_ed_attendances_measure <- function() {
 
   tbl_name <- "attendances_without_treatment"
   field_indexes <- c(paste0("0", 1:9), 10:12)
-  add_logic <- paste("(aeattenddisp = '02' OR aeattenddisp = '03' OR aeattenddisp = '12') AND",
+  add_logic <- paste("aeattendcat = '1' AND (aedeptype = '01' OR aedeptype = '99') AND",
+    "(aeattenddisp = '02' OR aeattenddisp = '03' OR aeattenddisp = '12') AND",
     paste0("(invest2_", field_indexes, " IS NULL OR substring(invest2_", field_indexes, " from 1 for 2) IN ('06', '6', '21', '22', '23', '24'))", collapse = " AND "), "AND",
     paste0("(treat2_", field_indexes, " IS NULL OR treat2_", field_indexes, " IN ('0', '00', '01', '1', '02', '2', '07', '7', '22', '30', '34', '56', '57', '99'))", collapse = " AND "), sep = " ")
   add_fields <- ""
@@ -100,7 +101,7 @@ save_ed_attendances_admitted_measure <- function() {
   db_conn <- connect2DB()
 
   tbl_name <- "attendances_admitted"
-  add_logic <- ""
+  add_logic <- "aeattendcat = '1' AND (aedeptype = '01' OR aedeptype = '99')"
   add_fields <- "aeattenddisp"
 
   # Prepare query string to create temp table
