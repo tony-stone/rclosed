@@ -23,8 +23,8 @@ prepare_relevant_attendances <- function(lsoas) {
 }
 
 
-# Creates new DB table to store only relevant HES APC records based on supplied LSOAs
-save_relevant_admitted_care <- function(lsoas) {
+# Creates new DB table to store only relevant HES APC episodes based on supplied LSOAs
+save_relevant_admitted_care_episodes <- function(lsoas) {
 
   db_conn <- connect2DB()
 
@@ -50,11 +50,47 @@ save_relevant_admitted_care <- function(lsoas) {
 }
 
 
+# Creates new DB table to store only relevant HES APC spells
+# - keep:
+# -- (diag_nn, cause_nn, admidate, startage) from admission episode;
+# -- (disdate, dismeth, endage) of discharge episode; any_critical_care is derived from tretspef from all episodes
+save_relevant_admitted_care_spells <- function() {
+
+  db_conn <- connect2DB()
+
+  tbl_name <- "relevant_apc_spells"
+  # Remove table if it already exists
+  if(RJDBC::dbExistsTable(db_conn, tbl_name) == TRUE) RJDBC::dbRemoveTable(db_conn, tbl_name)
+
+  # Prepare query string to create table
+  nrows <- DBI::dbGetQuery(db_conn, "SELECT COUNT(*) FROM relevant_apc_episodes WHERE admidate IN ();")[1, 1]
+
+  # Takes about 3.5hrs
+  pc <- proc.time()
+  resource <- RJDBC::dbSendUpdate(db_conn, sql_query_make_table)
+  proc.time() - pc
+
+  # Get size of table - ~10M
+  nrows <- DBI::dbGetQuery(db_conn, paste0("SELECT COUNT(*) FROM ", tbl_name, ";"))[1, 1]
+
+  # Disconnect from DB
+  DBI::dbDisconnect(db_conn)
+  db_conn <- NULL
+
+  return(nrows)
+}
+
+
+
 
 # Creates new DB table to store only relevant HES APC records based on supplied LSOAs
 prepare_relevant_admitted_care <- function(lsoas) {
 
-  nrows <- save_relevant_admitted_care(lsoas)
+  n_episodes <- save_relevant_admitted_care_episodes(lsoas)
+
+  n_spells <- save_relevant_admitted_care_spells()
+
+  n_cips <- save_relevant_admitted_care_cips()
 
 #   db_conn <- connect2DB()
 #

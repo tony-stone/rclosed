@@ -30,11 +30,13 @@ getDistinctVals <- function(db_conn, field_name, indexes = "", src = "ae") {
   src_tbl <- getDBTableName(src)
 
   distinct_vals_list <- lapply(indexes, function(x) {
-    return(DBI::dbGetQuery(db_conn, paste0("SELECT DISTINCT ", field_name, x, " FROM ", src_tbl, ";")))
+    return(DBI::dbGetQuery(db_conn, paste0("SELECT ", field_name, ", COUNT(*) AS n FROM ", src_tbl, " GROUP BY ", field_name, ";")))
   })
 
-  distinct_vals <- sort(unique(unlist(distinct_vals_list)), na.last = TRUE)
-
+  distinct_vals <- data.table::rbindlist(distinct_vals_list)
+  data.table::setnames(distinct_vals, c("value", "n"))
+  distinct_vals <- distinct_vals[, .(n = sum(n)), by = value]
+  data.table::setorder(distinct_vals, value)
   return(distinct_vals)
 }
 

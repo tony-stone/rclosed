@@ -26,7 +26,7 @@ db_conn <- RJDBC::dbConnect(db_drvr, db_url, password = db_config["pass"])
 # invest2_nn is dirty (>2 chars)
 # "aekey" is actually 12 characters (not 8 as specified), it is unique across reporting years (suspect first four chars are some play on the reporting year).
 
-# Creat AE table
+# Create AE table
 sql_create_AE_table <- paste0("CREATE TABLE public.hes_ae_0714_raw (",
   "activage VARCHAR(3), arrivalage VARCHAR(4), ethnos VARCHAR(2), ",
   "postdist VARCHAR(4), encrypted_hesid VARCHAR(32), sex CHAR(1), ",
