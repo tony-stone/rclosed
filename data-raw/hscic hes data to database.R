@@ -112,7 +112,7 @@ RJDBC::dbGetQuery(db_conn, "SELECT COUNT(*) FROM public.hes_ae_0714_raw")
 # "ethnos" from 2013/14 has max length of 2 chars (rather than 1)
 #  For Year 2011/12, HSCIC included two extra fields (admi_cfl and dis_cfl, check flags for admidate and disdate)
 
-# Creat APC table
+# Create APC table
 sql_create_APC_table <- paste0("CREATE TABLE public.hes_apc_0714_raw (",
   "endage VARCHAR(4), startage VARCHAR(4), ethnos VARCHAR(2), ",
   "encrypted_hesid VARCHAR(32), postdist VARCHAR(4), sex CHAR(1), ",

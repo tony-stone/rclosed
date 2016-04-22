@@ -25,6 +25,11 @@ getDBTableName <- function(shorthand) {
 }
 
 
+deleteDBTable <- function(db_conn, table) {
+  if(RJDBC::dbExistsTable(db_conn, table) == TRUE) {
+    tryCatch(invisible(RJDBC::dbRemoveTable(db_conn, table)), error = function(e) { stop(paste0("Could not remove DB table: ", table)) }, finally = NULL)
+  }
+}
 
 getDistinctVals <- function(db_conn, field_name, indexes = "", src = "ae") {
   src_tbl <- getDBTableName(src)
