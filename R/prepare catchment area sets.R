@@ -271,8 +271,9 @@ createCatchmentAreas <- function() {
 
   # Project group decided to use DfT catchment areas
   catchment_area_set_final <- copy(catchment_area_sets[data_source == "DfT" & !is.na(unique_code) & tied == FALSE,
-    .(lsoa, town, group, intervention_date, site_type, time_to_ae_pre_intv = N, time_to_ae_post_intv = N + diff_first_second)])
-  catchment_area_set_final[site_type == "matched control" | site_type == "pooled control", time_to_ae_post_intv := time_to_ae_pre_intv]
+    .(lsoa, town, group, intervention_date, site_type, diff_first_second, ae_post_intv = destination_2)])
+  catchment_area_set_final[site_type == "matched control" | site_type == "pooled control", ':=' (diff_first_second = 0L,
+    ae_post_intv = town)]
 
   save(catchment_area_set_final, file = "data/catchment area set final.Rda", compress = "xz")
 }

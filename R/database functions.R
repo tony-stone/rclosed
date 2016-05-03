@@ -58,32 +58,6 @@ getOptimalCompress <- function(fname) {
 
 
 
-fillDataPoints <- function(data) {
-  # Get catchment areas data
-  load("data/catchment area set final.Rda")
-
-  # Remove invalid time points from the data
-  data <- data[yearmonth >= as.Date("2007-04-01") & yearmonth <= as.Date("2014-03-01")]
-
-  # Create datapoints for each lsoa/month/measure/sub_measure covering the measurement space (as this is not guaranteed from the data)
-  data_points <- data.table::data.table(expand.grid(lsoa = unique(catchment_area_set_final$lsoa), yearmonth = seq(as.Date("2007-04-01"), as.Date("2014-03-01"), by = "month"), measure = unique(data$measure), sub_measure = unique(data$sub_measure), stringsAsFactors = FALSE))
-
-  # Merge data into data points so we have a record/row for each and every point
-  data_all_points <- merge(data_points, data, by = c("lsoa", "yearmonth", "measure", "sub_measure"), all = TRUE)
-  # if we do not have a value for a data point within the period for which we have data, set this to 0
-  # (else, if outside period for which we have data, it will remain as NA)
-  data_all_points[is.na(value) & yearmonth >= min(data$yearmonth) & yearmonth <= max(data$yearmonth), value := 0]
-
-  # Merge in catchment area data
-  data_measure <- merge(data_all_points, catchment_area_set_final, by = "lsoa", all = TRUE)
-
-  # Prepare time_to_ed field/variable and finalise dataset
-  data_measure[, time_to_ed := time_to_ae_post_intv]
-  data_measure[yearmonth < intervention_date, time_to_ed := time_to_ae_pre_intv]
-  data_measure[, c("time_to_ae_pre_intv", "time_to_ae_post_intv", "intervention_date") := NULL]
-
-  return(data_measure)
-}
 
 
 getDataFromTempTable <- function(conn, name, src = "ae", other_fields = "") {
