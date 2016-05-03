@@ -1,5 +1,7 @@
 library(data.table)
 library(rgdal)
+library(rgeos)
+library(openxlsx)
 
 # Projection strings
 WGS84_projection_str <- "+proj=longlat +ellps=WGS84 +datum=WGS84 +no_defs"
@@ -72,3 +74,37 @@ gc()
 # tools::checkRdaFiles("data/lsoa centroids data.Rda")
 # tools::resaveRdaFiles("data/lsoa centroids data.Rda")
 # tools::checkRdaFiles("data/lsoa centroids data.Rda")
+
+
+# NHS England 2015 CCG Ambulance Service boundaries -------------------------
+
+ccg2015_boundary_data <- readOGR("data-raw/geography data/Boundaries/Clinical_commissioning_groups_(Eng)_Jul_2015_Boundaries_(Generalised_Clipped)_V2", "CCG_JUL_2015_EN_BGC_V2")
+
+# Transform to WGS84 coordinate system
+ccg2015_boundary_data <- spTransform(ccg2015_boundary_data, WGS84_projection_str)
+
+# Read in NHS Engalnd Ambulance service to ccg 2015 lookup
+ambulance_service_ccg2015_lookup <- data.table(read.xlsx("D:/Rpackages/rclosed/data-raw/geography data/Lookups/NHS England Ambulance Service boundaries/CCG to ambulance service lookup - Jan 2016.xlsx", startRow = 4L, colNames = FALSE))
+ambulance_service_ccg2015_lookup[, X2 := NULL]
+setnames(ambulance_service_ccg2015_lookup, c("CCG15CD", "ambulance_service"))
+
+# Merge in NHS England Ambulance Service lookup
+ccg2015_boundary_data_amb <- merge(ccg2015_boundary_data, ambulance_service_ccg2015_lookup, by = "CCG15CD", all.x = TRUE)
+#ccg2015_boundary_data$ambulance_service <- as.character(ccg2015_boundary_data$ambulance_service)
+
+# Generate ambulance service boundaries
+ambulance_service_boundaries_2015 <- gUnaryUnion(ccg2015_boundary_data_amb, id = ccg2015_boundary_data_amb$ambulance_service)
+
+# Promote to SPDF, fix labelling
+ambulance_service_boundaries_2015 <- SpatialPolygonsDataFrame(ambulance_service_boundaries_2015, data.frame(ambulance_service = row.names(ambulance_service_boundaries_2015), row.names = row.names(ambulance_service_boundaries_2015), stringsAsFactors = FALSE))
+
+# Save
+save(ambulance_service_boundaries_2015, file = "data/ambulance service boundaries 2015.Rda", compress = "xz")
+
+# Remove from memory
+rm(ccg2015_boundary_data, ccg2015_boundary_data_amb, ambulance_service_ccg2015_lookup, ambulance_service_boundaries_2015)
+gc()
+
+# tools::checkRdaFiles("data/ambulance service boundaries 2015.Rda")
+# tools::resaveRdaFiles("data/ambulance service boundaries 2015.Rda")
+# tools::checkRdaFiles("data/ambulance service boundaries 2015.Rda")
