@@ -11,6 +11,9 @@ connect2DB <- function() {
   return(DBI::dbConnect(db_drvr, db_url, password = db_config["pass"]))
 }
 
+
+
+
 getDBTableName <- function(shorthand) {
   if(missing(shorthand) | is.na(shorthand)) stop("Undefined source table name.")
   shorthand <- tolower(shorthand)
@@ -25,11 +28,16 @@ getDBTableName <- function(shorthand) {
 }
 
 
+
+
 deleteDBTable <- function(db_conn, table) {
   if(RJDBC::dbExistsTable(db_conn, table) == TRUE) {
     tryCatch(invisible(RJDBC::dbRemoveTable(db_conn, table)), error = function(e) { stop(paste0("Could not remove DB table: ", table)) }, finally = NULL)
   }
 }
+
+
+
 
 getDistinctVals <- function(db_conn, field_name, indexes = "", src = "ae") {
   src_tbl <- getDBTableName(src)
@@ -46,16 +54,12 @@ getDistinctVals <- function(db_conn, field_name, indexes = "", src = "ae") {
 }
 
 
+
+
 getCounts <- function(db_conn, where = "1 = 1", src = "ae") {
   src_tbl <- getDBTableName(src)
   DBI::dbGetQuery(db_conn, paste0("SELECT COUNT(*) FROM ", src_tbl, " WHERE ", where, ";"))
 }
-
-getOptimalCompress <- function(fname) {
-  tools::resaveRdaFiles(fname)
-  return(tools::checkRdaFiles(fname))
-}
-
 
 
 
@@ -100,6 +104,8 @@ getDataFromTempTable <- function(conn, name, src = "ae", other_fields = "") {
 
   return(data)
 }
+
+
 
 
 getSqlUpdateQuery <- function(src = "ae", temp_tbl, select_logic = "", other_fields = "") {

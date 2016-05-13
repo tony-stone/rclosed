@@ -69,3 +69,9 @@ addFractionSubmeasure <- function(data, subm_denom, subm_num, subm_new) {
 collapseLsoas2Sites <- function(data, remove_nas = FALSE) {
   return(data[, .(value = sum(value, na.rm = remove_nas)), by = .(yearmonth, measure, sub_measure, town, group, site_type, relative_month)])
 }
+
+
+getOptimalCompress <- function(fname) {
+  tools::resaveRdaFiles(fname)
+  return(tools::checkRdaFiles(fname))
+}

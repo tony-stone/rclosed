@@ -14,20 +14,10 @@ Source: CRAN
 Version: 0.3.1
 Hash: 096699d1ac1cf530acfc646a0c90ee5d
 
-Package: MASS
-Source: CRAN
-Version: 7.3-45
-
-Package: Matrix
-Source: CRAN
-Version: 1.2-5
-Requires: lattice
-
 Package: MatrixModels
 Source: CRAN
 Version: 0.4-1
 Hash: 60a5c75e57aae4a0ce76cb7422939aaf
-Requires: Matrix
 
 Package: R6
 Source: CRAN
@@ -125,10 +115,6 @@ Version: 0.8.3
 Hash: af30a08e081f5ba083cc8f0545391151
 Requires: stringr
 
-Package: foreign
-Source: CRAN
-Version: 0.8-66
-
 Package: formatR
 Source: CRAN
 Version: 1.3
@@ -138,7 +124,7 @@ Package: ggplot2
 Source: CRAN
 Version: 2.1.0
 Hash: 50e297b0191179c39c7dcae0eff72b51
-Requires: MASS, digest, gtable, plyr, reshape2, scales
+Requires: digest, gtable, plyr, reshape2, scales
 
 Package: git2r
 Source: CRAN
@@ -194,10 +180,6 @@ Source: CRAN
 Version: 0.3
 Hash: ecf589b42cd284b03a4beb9665482d3e
 
-Package: lattice
-Source: CRAN
-Version: 0.20-33
-
 Package: leaflet
 Source: CRAN
 Version: 1.0.1
@@ -220,7 +202,7 @@ Package: maptools
 Source: CRAN
 Version: 0.8-39
 Hash: f88d489894305e514eacb380f4cb2008
-Requires: foreign, lattice, sp
+Requires: sp
 
 Package: markdown
 Source: CRAN
@@ -298,13 +280,13 @@ Requires: Rcpp, plyr, stringr
 Package: rgdal
 Source: CRAN
 Version: 1.1-8
-Hash: 254816fe14dfbdfff13b7917c68e5f82
+Hash: 83eaba3df0fc39f61e2f3e6f85319895
 Requires: sp
 
 Package: rgeos
 Source: CRAN
 Version: 0.3-19
-Hash: 296946d066d25af73e8906da36a92a9e
+Hash: d2d71bf6b56cf5a6a955deab49b89a8f
 Requires: sp
 
 Package: rmarkdown
@@ -334,7 +316,6 @@ Package: sp
 Source: CRAN
 Version: 1.2-2
 Hash: c6844cf8ecf6db253601c7f6eceb9cc5
-Requires: lattice
 
 Package: stringi
 Source: CRAN
