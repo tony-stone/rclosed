@@ -5,7 +5,7 @@ library(openxlsx)
 # Load the data for the sites we are interested in.  Includes details of site / dates / codes / etc.
 
 # Read in data
-site_data <- data.table(read.xlsx("data-raw/site data/site data - 2016.04.12.xlsx"))
+site_data <- data.table(read.xlsx("data-raw/site data/site data - 2016.05.18.xlsx"))
 
 # convert to correct data types
 site_data[, ':=' (intervention_date = as.Date(intervention_date, origin = "1899-12-30"),

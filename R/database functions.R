@@ -20,7 +20,7 @@ getDBTableName <- function(shorthand) {
   if(shorthand == "ae") {
     rt_val <- "relevant_ae_attendances"
   } else if(shorthand == "apc") {
-    rt_val <- "relevant_apc_episodes"
+    rt_val <- "relevant_apc_cips_data"
   } else {
     stop("Undefined source table name.")
   }
@@ -65,7 +65,7 @@ getCounts <- function(db_conn, where = "1 = 1", src = "ae") {
 
 
 getDataFromTempTable <- function(conn, name, src = "ae", other_fields = "") {
-  # Much of this is a work around in order to get a large volume of data from PostgreSQL in manageable chunks
+  # Much of this is a work around in order to get a large volume of data from PostgreSQL in (memory) manageable chunks
 
   std_fields <- ifelse(src == "ae", "procode3, lsoa01, aedepttype, yearmonth, value", "procode, lsoa01, yearmonth, value")
   other_fields <- ifelse(other_fields == "", "", paste0(", ", other_fields))
@@ -96,8 +96,12 @@ getDataFromTempTable <- function(conn, name, src = "ae", other_fields = "") {
   # Convert to data.table
   data <- data.table::data.table(df_data)
 
-  # Convert dates to date type
-  data[, yearmonth := as.Date(lubridate::fast_strptime(paste0(yearmonth, "-01"), format = "%Y-%m-%d", lt = FALSE))]
+  # Standardise field types
+  if(src == "ae") {
+    data[, yearmonth := as.Date(lubridate::fast_strptime(paste0(yearmonth, "-01"), format = "%Y-%m-%d", lt = FALSE))]
+  } else {
+    data[, yearmonth := as.Date(lubridate::fast_strptime(yearmonth, format = "%Y-%m-%d", lt = FALSE))]
+  }
 
   # Standardise field names
   data.table::setnames(data, "lsoa01", "lsoa")
@@ -124,26 +128,27 @@ getSqlUpdateQuery <- function(src = "ae", temp_tbl, select_logic = "", other_fie
 
     # Prepare query string to create temp table
     sql <- paste("CREATE TEMP TABLE", temp_tbl, "AS SELECT row_number() OVER () AS row,", sql_fields_units[1], "FROM (",
-      "SELECT", sql_fields_units[2], "FROM relevant_ae_attendances wHERE aeattendcat = '1'",
+      "SELECT", sql_fields_units[2], "FROM", src_tbl, "wHERE aeattendcat = '1'",
       additional_logic,
-      "GROUP BY", sql_fields_units[3], ") AS st;", sep = " ")
+      "GROUP BY", sql_fields_units[3], ") AS st;")
 
   } else {
 
     std_fields <- "procode, lsoa01, yearmonth, value"
-    std_fields_constr <- c("procode, lsoa01, substring(admidate from 1 for 7)", " AS yearmonth, COUNT(*) AS value")
+    std_fields_constr <- c("procode, lsoa01,  to_char(date_trunc('month', cips_start), 'YYYY-MM-DD')", " AS yearmonth, COUNT(*) AS value")
     sql_fields_units_std <- c(std_fields, paste0(std_fields_constr, collapse = ""), std_fields_constr[1])
 
     additional_fields <- ifelse(other_fields == "", "", paste0(", ", other_fields))
     sql_fields_units <- paste0(sql_fields_units_std, additional_fields)
 
-    additional_logic <- ifelse(select_logic == "", "", paste0("WHERE ", select_logic))
+    additional_logic <- ifelse(select_logic == "", "", paste0("AND ", select_logic))
 
     # Prepare query string to create temp table
     sql <- paste("CREATE TEMP TABLE", temp_tbl, "AS SELECT row_number() OVER () AS row,", sql_fields_units[1], "FROM (",
-      "SELECT", sql_fields_units[2], "FROM relevant_apc_episodes",
+      "SELECT", sql_fields_units[2], "FROM", src_tbl,
+      "WHERE emergency_admission = TRUE",
       additional_logic,
-      "GROUP BY", sql_fields_units[3], ") AS st;", sep = " ")
+      "GROUP BY", sql_fields_units[3], ") AS st;")
   }
 
   return(sql)

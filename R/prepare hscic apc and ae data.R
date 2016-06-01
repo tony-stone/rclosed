@@ -261,7 +261,9 @@ save_relevant_cips_data <- function(lsoas) {
 
   # Prepare query string to create table of summary data for each cips
   sql_query_make_table <- paste("CREATE TABLE", tbl_name, "AS",
-    "SELECT cipss.*, discharged.last_disdate, died.date_of_death_first, died.date_of_death_last,",
+    "SELECT cipss.*,",
+    "CASE WHEN cipss.male_episodes > cipss.female_episodes THEN 1 WHEN cipss.male_episodes < cipss.female_episodes THEN 2 ELSE NULL END AS sex,",
+    "discharged.last_disdate, died.date_of_death_first, died.date_of_death_last,",
     "admiepi.diag_01, admiepi.diag_02, admiepi.cause, admiepi.startage, admiepi.admimeth, admiepi.lsoa01, admiepi.procode, lastepi.endage,",
     "CASE WHEN discharged.last_disdate >= cipss.cips_end THEN TRUE ELSE FALSE END AS cips_finished,",
     "CASE WHEN died.date_of_death_first IS NOT NULL THEN TRUE ELSE FALSE END AS died,",
@@ -271,7 +273,7 @@ save_relevant_cips_data <- function(lsoas) {
     "(",
     "SELECT encrypted_hesid, cips, LEAST(MIN(admidate), MIN(epistart)) AS cips_start, MAX(epiend) AS cips_end,",
     "MAX(CASE WHEN tretspef = '192' THEN 1 ELSE 0 END) AS any_critical_care,",
-    "SUM(CASE WHEN sex = '1' THEN 1 ELSE 0 END) AS male_episodes, SUM(CASE WHEN sex = '2' THEN 1 ELSE 0 END) AS female_episodes,",
+    "SUM(CASE WHEN sex = '1' THEN 1 ELSE 0 END) AS male_episodes, SUM(CASE WHEN sex IS NOT DISTINCT FROM '2' THEN 1 ELSE 0 END) AS female_episodes,",
     "COUNT(*) AS total_episodes,",
     "MIN(startage) AS cips_youngestage, MAX(endage) AS cips_oldestage",
     "FROM relevant_apc_cips_episode_data GROUP BY encrypted_hesid, cips",
@@ -320,18 +322,22 @@ save_relevant_cips_data <- function(lsoas) {
 #
 # zombies <- DBI::dbGetQuery(db_conn, paste("SELECT * FROM relevant_apc_episodes WHERE encrypted_hesid IN (", paste0("'", bla6$encrypted_hesid, "'", collapse = ", "), ");"))
 #
+# Strange finishes
+stange_finishers <- DBI::dbGetQuery(db_conn, paste("SELECT dis.dis_diff, COUNT(*) FROM (SELECT (cips_end - last_disdate) AS dis_diff FROM relevant_apc_cips_data) AS dis GROUP BY dis.dis_diff ORDER BY dis.dis_diff ASC NULLS FIRST;"))
+sum(stange_finishers$count[!is.na(stange_finishers$dis_diff) & stange_finishers$dis_diff < 0])
+
 # Emergency and avoidable admissions
-# measures1 <- DBI::dbGetQuery(db_conn, paste("SELECT to_char(date_trunc('month', cips_start), 'YYYY-MM-DD') AS yearmonth, lsoa01 AS lsoa, startage, diag_01, diag_02, cause, COUNT(*) AS values FROM relevant_apc_cips_data WHERE emergency_admission = TRUE GROUP BY yearmonth, lsoa, startage, diag_01, diag_02, cause;"))
-#
+measures1 <- DBI::dbGetQuery(db_conn, paste("SELECT to_char(date_trunc('month', cips_start), 'YYYY-MM-DD') AS yearmonth, lsoa01 AS lsoa, startage, diag_01, diag_02, cause, COUNT(*) AS values FROM relevant_apc_cips_data WHERE emergency_admission = TRUE GROUP BY yearmonth, lsoa, startage, diag_01, diag_02, cause;"))
+
 # condition severity
-# measures2 <- DBI::dbGetQuery(db_conn, paste("SELECT to_char(date_trunc('month', cips_start), 'YYYY-MM-DD') AS yearmonth, lsoa01 AS lsoa, AVG(CAST(nights_admitted AS DOUBLE PRECISION)) AS mean_length_of_stay, COUNT(*) as num_admissions, SUM(any_critical_care) AS num_received_critical_care FROM relevant_apc_cips_data WHERE cips_finished = TRUE AND emergency_admission = TRUE AND nights_admitted < 213 GROUP BY yearmonth, lsoa;"))
-#
+measures2 <- DBI::dbGetQuery(db_conn, paste("SELECT to_char(date_trunc('month', cips_start), 'YYYY-MM-DD') AS yearmonth, lsoa01 AS lsoa, AVG(CAST(nights_admitted AS DOUBLE PRECISION)) AS mean_length_of_stay, COUNT(*) as num_admissions, SUM(any_critical_care) AS num_received_critical_care FROM relevant_apc_cips_data WHERE cips_finished = TRUE AND emergency_admission = TRUE AND nights_admitted < 213 GROUP BY yearmonth, lsoa;"))
+
 # mortality
-# measures3 <- DBI::dbGetQuery(db_conn, paste("SELECT to_char(date_trunc('month', cips_start), 'YYYY-MM-DD') AS yearmonth, to_char(date_trunc('month', date_of_death_last), 'YYYY-MM-DD') AS yearmonth_death, lsoa01 AS lsoa, startage, endage, diag_01, diag_02, cause FROM relevant_apc_cips_data WHERE cips_finished = TRUE AND emergency_admission = TRUE AND nights_admitted < 213 AND died = TRUE AND date_of_death_last = last_disdate;"))
-#
+measures3 <- DBI::dbGetQuery(db_conn, paste("SELECT to_char(date_trunc('month', cips_start), 'YYYY-MM-DD') AS yearmonth, to_char(date_trunc('month', date_of_death_last), 'YYYY-MM-DD') AS yearmonth_death, lsoa01 AS lsoa, startage, endage, diag_01, diag_02, cause FROM relevant_apc_cips_data WHERE cips_finished = TRUE AND emergency_admission = TRUE AND nights_admitted < 213 AND died = TRUE AND date_of_death_last = last_disdate;"))
+
 # Case fatality
-# measures4 <- DBI::dbGetQuery(db_conn, paste("SELECT to_char(date_trunc('month', cips_start), 'YYYY-MM-DD') AS yearmonth, lsoa01 AS lsoa, startage, diag_01, diag_02, cause, COUNT(*) AS cases, SUM(CASE WHEN died = TRUE AND date_of_death_last = last_disdate AND nights_admitted < 3 THEN 1 ELSE 0) AS fatalities FROM relevant_apc_cips_data WHERE emergency_admission = TRUE GROUP BY yearmonth, lsoa, startage, diag_01, diag_02, cause;"))
-#
+measures4 <- DBI::dbGetQuery(db_conn, paste("SELECT to_char(date_trunc('month', cips_start), 'YYYY-MM-DD') AS yearmonth, lsoa01 AS lsoa, startage, diag_01, diag_02, cause, COUNT(*) AS cases, SUM(CASE WHEN died = TRUE AND date_of_death_last = last_disdate AND nights_admitted < 3 THEN 1 ELSE 0) AS fatalities FROM relevant_apc_cips_data WHERE emergency_admission = TRUE GROUP BY yearmonth, lsoa, startage, diag_01, diag_02, cause;"))
+
 # ggplot2::ggplot(bla4, ggplot2::aes(nights_admitted)) +
 #   ggplot2::ggtitle("Histogram of nights admitted for patients admitted from A&E") +
 #   ggplot2::geom_histogram(binwidth = 1) +

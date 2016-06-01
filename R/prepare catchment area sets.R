@@ -1,5 +1,3 @@
-library(data.table)
-
 # Generic fn for First Past the Post for HES and Amb data -----------------
 
 genFPPAreaSets <- function(end_date_exc, data_src, period_length_months = 12) {
@@ -277,7 +275,3 @@ createCatchmentAreas <- function() {
 
   save(catchment_area_set_final, file = "data/catchment area set final.Rda", compress = "xz")
 }
-
-
-# execute! ----------------------------------------------------------------
-createCatchmentAreas()

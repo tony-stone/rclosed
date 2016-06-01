@@ -18,7 +18,7 @@ extract1_2007_2014_list <- lapply(file_names_1, function(fname) { data.table( re
 extract1_2007_2014 <- rbindlist(extract1_2007_2014_list)
 
 # set field names
-field_names <- c("deaths", "year", "month", "sex", "LSOA", "age", "place_of_death", "death_underlying_cause", "death_secondary_cause")
+field_names <- c("deaths", "year", "month", "sex", "lsoa", "age", "place_of_death", "death_underlying_cause", "death_secondary_cause")
 setnames(extract1_2007_2014, field_names)
 
 # Fix field data types for processing later
@@ -35,7 +35,7 @@ extract1_2007_2014[sex == "2", sex := "female"]
 extract1_2007_2014[sex == "1", sex := "male"]
 
 # place of death
-extract1_2007_2014[place_of_death == "1", place_of_death := "NHS_hospital"]
+extract1_2007_2014[place_of_death == "1", place_of_death := "nhs hospital"]
 extract1_2007_2014[place_of_death == "2", place_of_death := "elsewhere"]
 
 
@@ -96,7 +96,18 @@ extract1_2007_2014[, cause_of_death := death_secondary_cause]
 extract1_2007_2014[death_secondary_cause == "none" | death_secondary_cause == "other", cause_of_death := death_underlying_cause]
 
 # Collapse data based on newly coded cause_of_death field
-deaths_serious_emergency_conditions <- extract1_2007_2014[cause_of_death != "other", .(deaths = sum(deaths)), by=.(LSOA, sex, age_cat, place_of_death, cause_of_death, yearmonth)]
+deaths_serious_emergency_conditions <- extract1_2007_2014[cause_of_death != "other", .(deaths = sum(deaths)), by=.(lsoa, sex, age_cat, place_of_death, cause_of_death, yearmonth)]
+
+# Standardise condition names
+label_changes <- data.frame(
+  old = c("Acute heart failure", "Anaphylaxis", "Asphyxiation", "Asthma", "Cardiac arrest", "Falls", "Fractured neck of femur", "Meningitis", "Myocardial Infarction", "Pregnancy and birth related", "Road traffic accident", "Ruptured aortic aneurysm", "Self-harm", "Septic shock", "Serious Head Injury", "Stroke/CVA"),
+  new = c("acute heart failure", "anaphylaxis", "asphyxiation", "asthma", "cardiac arrest", "falls", "fractured neck of femur", "meningitis", "myocardial infarction", "pregnancy and birth related", "road traffic accident", "ruptured aortic aneurysm", "self harm", "septic shock", "serious head injury", "stroke cva"),
+  stringsAsFactors = FALSE
+)
+for(condition in label_changes$old) {
+  deaths_serious_emergency_conditions[cause_of_death == condition, cause_of_death := label_changes$new[label_changes$old == condition]]
+}
+
 
 ###############################################################################
 # # TEST - used to extract data to confirm actual logic used by MCRU report
@@ -113,7 +124,7 @@ deaths_serious_emergency_conditions <- extract1_2007_2014[cause_of_death != "oth
 save(deaths_serious_emergency_conditions, file = "data/ons deaths (16 serious emergency conditions).Rda", compress = "bzip2")
 
 # Remove data
-rm(deaths_serious_emergency_conditions, extract1_2007_2014, extract1_2007_2014_list)
+rm(label_changes, deaths_serious_emergency_conditions, extract1_2007_2014, extract1_2007_2014_list)
 gc()
 
 

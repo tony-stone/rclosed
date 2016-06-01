@@ -50,9 +50,6 @@ save_ed_attendances_measure <- function() {
 
 
 
-
-
-
 save_unnecessary_ed_attendances_measure <- function() {
 
   db_conn <- connect2DB()
@@ -84,10 +81,14 @@ save_unnecessary_ed_attendances_measure <- function() {
   # format
   unnecessary_ed_attendances_by_lsoa_month[, ':=' (measure = "unnecessary ed attendances",
     sub_measure = as.character(NA))]
+
   unnecessary_ed_attendances_measure <- fillDataPoints(unnecessary_ed_attendances_by_lsoa_month)
+
+  unnecessary_ed_attendances_site_measure <- collapseLsoas2Sites(unnecessary_ed_attendances_measure)
 
   # save measure
   save(unnecessary_ed_attendances_measure, file = createMeasureFilename("unnecessary ed attendances"), compress = "xz")
+  save(unnecessary_ed_attendances_site_measure, file = createMeasureFilename("unnecessary ed attendances", "site"), compress = "bzip2")
 }
 
 
@@ -140,23 +141,3 @@ save_ed_attendances_admitted_measure <- function() {
   save(ed_attendances_admitted_site_measure, file = createMeasureFilename("ed attendances admitted", "site"), compress = "xz")
 }
 
-
-
-# bla <- ed_attendances_admitted_measure[sub_measure != "fraction admitted", .(value = sum(value)), by = .(sub_measure, town, yearmonth)]
-#
-# bla2 <- data.table::dcast(bla, town + yearmonth ~ sub_measure, value.var = "value")
-#
-# bla2[, value := admitted / all]
-#
-# ggplot2::ggplot(bla2[town %in% c("Basingstoke", "Newark")], ggplot2::aes(x = yearmonth, y = value, colour = town)) +
-#   #ggplot2::facet_grid(. ~ aedepttype_int) +
-#   ggplot2::ggtitle("Unnecessary ED attendances by month\n(split by ED site)") +
-#   ggplot2::geom_line(size = 1) +
-#   ggplot2::scale_x_date(name = "month", date_breaks = "3 months", date_labels = "%b %Y", expand = c(0, 15)) +
-#   ggplot2::scale_y_continuous(labels = scales::comma, limits = c(0, NA), expand = c(0.02, 0)) +
-#   ggplot2::theme(axis.text.x = ggplot2::element_text(face="bold", angle=90, hjust=0.0, vjust=0.3))
-
-
-save_ed_attendances_measure()
-save_unnecessary_ed_attendances_measure()
-save_ed_attendances_admitted_measure()
