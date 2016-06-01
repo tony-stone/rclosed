@@ -1,14 +1,11 @@
-Package: rclosed
+Package: rClosed
 Title: The Preparation of Data for the ClosED Study, University of Sheffield
 Version: 0.0.0.9000
-Authors@R: as.person(c(
-    "Tony Stone <tony.stone@sheffield.ac.uk> [aut,cre]",
-    "Neil Shephard <n.shephard@sheffield.ac.uk> [aut]"
-    ))
+Authors@R: as.person("Tony Stone <tony.stone@sheffield.ac.uk> [aut,cre]")
 Description: The preparation of quantitative data for a study assessing the impact
     of closing Emergency Departments in England (closED) undertaken by ScHARR,
     University of Sheffield (2015-2016).
-Depends: R (>= 3.2.4),
+Depends: R (>= 3.2.5),
          data.table (>= 1.9.6)
 License: GPL-3
 LazyData: true

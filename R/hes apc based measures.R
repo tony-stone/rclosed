@@ -218,3 +218,77 @@ save_length_of_stay_measure <- function() {
   save(length_of_stay_measure, file = createMeasureFilename("length of stay"), compress = "bzip2")
   save(length_of_stay_site_measure, file = createMeasureFilename("length of stay", "site"), compress = "bzip2")
 }
+
+
+
+
+save_case_fatality_measure <- function() {
+
+  db_conn <- connect2DB()
+
+  tbl_name_1 <- "cips_by_diagnosis_site_lsoa_month"
+  add_logic_1 <- "cips_finished = TRUE AND nights_admitted < 184"
+  add_fields_1 <- "diag_01, diag_02, cause, startage"
+
+  tbl_name_2 <- "deaths_by_diagnosis_site_lsoa_month"
+  add_logic_2 <- "cips_finished = TRUE AND nights_admitted < 3 AND died = TRUE AND date_of_death_last = last_disdate"
+  add_fields_2 <- "diag_01, diag_02, cause, startage"
+
+  # Prepare query string to create temp table
+  sql_create_tbl_1 <- getSqlUpdateQuery("apc", tbl_name_1, add_logic_1, add_fields_1)
+  sql_create_tbl_2 <- getSqlUpdateQuery("apc", tbl_name_2, add_logic_2, add_fields_2)
+
+  # Takes ~40s
+  resource <- RJDBC::dbSendUpdate(db_conn, sql_create_tbl_1)
+  resource <- RJDBC::dbSendUpdate(db_conn, sql_create_tbl_2)
+
+  # retrieve data, takes ~20s
+  hes_apc_cips <- getDataFromTempTable(db_conn, tbl_name_1, "apc", add_fields_1)
+  hes_apc_deaths <- getDataFromTempTable(db_conn, tbl_name_2, "apc", add_fields_2)
+
+  # Disconnect from DB
+  DBI::dbDisconnect(db_conn)
+  db_conn <- NULL
+
+  # classify conditions, ~5s
+  hes_apc_cips <- classifyAvoidableDeaths(hes_apc_cips)
+  hes_apc_deaths <- classifyAvoidableDeaths(hes_apc_deaths)
+
+  # aggregate to (lsoa, month, avoidable condition)
+  hes_apc_cips_aggregated <- hes_apc_cips[condition != "other", .(value = sum(value)), by = .(lsoa, yearmonth, condition)]
+  hes_apc_deaths_aggregated <- hes_apc_deaths[condition != "other", .(fatalities = sum(value)), by = .(lsoa, yearmonth, condition)]
+
+  # format
+  setnames(hes_apc_cips_aggregated, "condition", "sub_measure")
+  setnames(hes_apc_deaths_aggregated, "condition", "sub_measure")
+  hes_apc_cips_aggregated[, measure := "case fatality ratio"]
+  hes_apc_cips_aggregated <- fillDataPoints(hes_apc_cips_aggregated, FALSE) # Do not treat as count data (i.e. maintain NAs)
+
+  # merge cips and 3-day deaths
+  case_fatality_single_measure <- merge(hes_apc_cips_aggregated, hes_apc_deaths_aggregated, by = c("lsoa", "yearmonth", "sub_measure"), all.x = TRUE)
+
+  # for those where there are no fatalities (NA - missing data) set fatalities to 0
+  case_fatality_single_measure[is.na(fatalities) & !is.na(value), fatalities := 0]
+
+  # compute cases and fatalities by any condition
+  case_fatality_any_measure <- case_fatality_single_measure[, .(value = sum(value, na.rm = TRUE), fatalities = sum(fatalities, na.rm = TRUE)), by = .(lsoa, yearmonth, measure, town, group, site_type, relative_month, diff_time_to_ed)]
+  case_fatality_any_measure[value == 0, ':=' (value = NA,
+    fatalities = NA)]
+  case_fatality_any_measure[, sub_measure := "any"]
+
+  # compute case fatality ratio
+  case_fatality_measure <- rbind(case_fatality_single_measure, case_fatality_any_measure)
+  case_fatality_site_measure <- case_fatality_measure[, .(value = sum(value, na.rm = TRUE), fatalities = sum(fatalities, na.rm = TRUE)), by = .(yearmonth, measure, sub_measure, town, group, site_type, relative_month)]
+  case_fatality_site_measure[value == 0, ':=' (value = NA,
+    fatalities = NA)]
+
+  case_fatality_measure[, ':=' (value = fatalities / value,
+    fatalities = NULL)]
+
+  case_fatality_site_measure[, ':=' (value = fatalities / value,
+    fatalities = NULL)]
+
+  # save
+  save(case_fatality_measure, file = createMeasureFilename("case fatality"), compress = "xz")
+  save(case_fatality_site_measure, file = createMeasureFilename("case fatality", "site"), compress = "bzip2")
+}
