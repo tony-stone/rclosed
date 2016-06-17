@@ -14,8 +14,7 @@ genClosedMeasures <- function() {
   save_emergency_admissions_measure()
   save_critical_care_stays_measure()
   save_length_of_stay_measure()
-  save_case_fatality_measure()
 
   # Deaths based measures, ??mins
-  #save_avoidable_deaths_measure()
+  save_case_fatality_measure()
 }

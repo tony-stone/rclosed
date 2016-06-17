@@ -19,66 +19,14 @@ save_emergency_admissions_measure <- function() {
   DBI::dbDisconnect(db_conn)
   db_conn <- NULL
 
-  ## Deal with error codes in the diag_01 field
-  # cause code in primary diagnosis field
-  emergency_admissions_by_diagnosis_site_lsoa_month[diag_01 == "R69X3", diag_01 := diag_02]
-
-  ## categorise into "avoidable admissions" conditions
-  # default to 'other'
-  emergency_admissions_by_diagnosis_site_lsoa_month[, sub_measure := "other"]
-
-  # Create 1 character, 3 character and 4 character codes diagnosis codes and 3 character cause code
-  emergency_admissions_by_diagnosis_site_lsoa_month[, diag_4char := toupper(substr(diag_01, 1, 4))]
-  emergency_admissions_by_diagnosis_site_lsoa_month[, diag_3char := substr(diag_4char, 1, 3)]
-  emergency_admissions_by_diagnosis_site_lsoa_month[, diag_1char := substr(diag_4char, 1, 1)]
-  emergency_admissions_by_diagnosis_site_lsoa_month[, diag_cause := toupper(substr(cause, 1, 3))]
-
-  # Hypoglycemia
-  emergency_admissions_by_diagnosis_site_lsoa_month[sub_measure == "other" & (diag_3char %in% paste0("E", 10:15) | diag_4char %in% paste0("E", 161:162)), sub_measure := "hypoglycaemia"]
-
-  # Acute mental health crisis
-  emergency_admissions_by_diagnosis_site_lsoa_month[sub_measure == "other" & diag_1char == "F", sub_measure := "acute mental health crisis"]
-
-  # Epileptic fit
-  emergency_admissions_by_diagnosis_site_lsoa_month[sub_measure == "other" & diag_3char %in% paste0("G", 40:41), sub_measure := "epileptic fit"]
-
-  # Angina
-  emergency_admissions_by_diagnosis_site_lsoa_month[sub_measure == "other" & diag_3char == "I20", sub_measure := "angina"]
-
-  # DVT
-  emergency_admissions_by_diagnosis_site_lsoa_month[sub_measure == "other" & diag_3char %in% paste0("I", 80:82), sub_measure := "dvt"]
-
-  # COPD
-  emergency_admissions_by_diagnosis_site_lsoa_month[sub_measure == "other" & diag_3char %in% paste0("J", 40:44), sub_measure := "copd"]
-
-  # Cellulitis
-  emergency_admissions_by_diagnosis_site_lsoa_month[sub_measure == "other" & diag_3char == "L03", sub_measure := "cellulitis"]
-
-  # Urinary tract infection
-  emergency_admissions_by_diagnosis_site_lsoa_month[sub_measure == "other" & diag_4char == "N390", sub_measure := "urinary tract infection"]
-
-  # Non-specific chest pain
-  emergency_admissions_by_diagnosis_site_lsoa_month[sub_measure == "other" & diag_4char %in% paste0("R0", 72:74), sub_measure := "non-specific chest pain"]
-
-  # Non-specific abdominal pain
-  emergency_admissions_by_diagnosis_site_lsoa_month[sub_measure == "other" & diag_3char == "R10", sub_measure := "non-specific abdominal pain"]
-
-  # Pyrexial child (<6 years)
-  emergency_admissions_by_diagnosis_site_lsoa_month[sub_measure == "other" & diag_3char == "R50" & startage < 6L, sub_measure := "pyrexial child (<6 years)"]
-
-  # Minor head injuries
-  emergency_admissions_by_diagnosis_site_lsoa_month[sub_measure == "other" & diag_3char == "S00", sub_measure := "minor head injuries"]
-
-  # Blocked catheter
-  emergency_admissions_by_diagnosis_site_lsoa_month[sub_measure == "other" & diag_4char == "T830", sub_measure := "blocked catheter"]
-
-  # Falls (75+ years)
-  falls_codes_digits <- expand.grid(d1 = 0:1, d2 = 0:9, stringsAsFactors = FALSE)
-  falls_codes <- paste0("W", falls_codes_digits$d1, falls_codes_digits$d2)
-  emergency_admissions_by_diagnosis_site_lsoa_month[sub_measure == "other" & diag_cause %in% falls_codes & startage >= 75L, sub_measure := "falls (75+ years)"]
+  # Classify
+  emergency_admissions_by_diagnosis_site_lsoa_month <- classifyAvoidableAdmissions(emergency_admissions_by_diagnosis_site_lsoa_month)
 
   # collapse to attendances by (lsoa, month, avoidable condition)
-  emergency_admissions_by_condition_lsoa_month <- emergency_admissions_by_diagnosis_site_lsoa_month[, .(value = sum(value)), by = .(lsoa, yearmonth, sub_measure)]
+  emergency_admissions_by_condition_lsoa_month <- emergency_admissions_by_diagnosis_site_lsoa_month[, .(value = sum(value)), by = .(lsoa, yearmonth, condition)]
+
+  # format
+  setnames(emergency_admissions_by_condition_lsoa_month, "condition", "sub_measure")
 
   # Free up memory
   rm(emergency_admissions_by_diagnosis_site_lsoa_month)
@@ -217,78 +165,4 @@ save_length_of_stay_measure <- function() {
   # save
   save(length_of_stay_measure, file = createMeasureFilename("length of stay"), compress = "bzip2")
   save(length_of_stay_site_measure, file = createMeasureFilename("length of stay", "site"), compress = "bzip2")
-}
-
-
-
-
-save_case_fatality_measure <- function() {
-
-  db_conn <- connect2DB()
-
-  tbl_name_1 <- "cips_by_diagnosis_site_lsoa_month"
-  add_logic_1 <- "cips_finished = TRUE AND nights_admitted < 184"
-  add_fields_1 <- "diag_01, diag_02, cause, startage"
-
-  tbl_name_2 <- "deaths_by_diagnosis_site_lsoa_month"
-  add_logic_2 <- "cips_finished = TRUE AND nights_admitted < 3 AND died = TRUE AND date_of_death_last = last_disdate"
-  add_fields_2 <- "diag_01, diag_02, cause, startage"
-
-  # Prepare query string to create temp table
-  sql_create_tbl_1 <- getSqlUpdateQuery("apc", tbl_name_1, add_logic_1, add_fields_1)
-  sql_create_tbl_2 <- getSqlUpdateQuery("apc", tbl_name_2, add_logic_2, add_fields_2)
-
-  # Takes ~40s
-  resource <- RJDBC::dbSendUpdate(db_conn, sql_create_tbl_1)
-  resource <- RJDBC::dbSendUpdate(db_conn, sql_create_tbl_2)
-
-  # retrieve data, takes ~20s
-  hes_apc_cips <- getDataFromTempTable(db_conn, tbl_name_1, "apc", add_fields_1)
-  hes_apc_deaths <- getDataFromTempTable(db_conn, tbl_name_2, "apc", add_fields_2)
-
-  # Disconnect from DB
-  DBI::dbDisconnect(db_conn)
-  db_conn <- NULL
-
-  # classify conditions, ~5s
-  hes_apc_cips <- classifyAvoidableDeaths(hes_apc_cips)
-  hes_apc_deaths <- classifyAvoidableDeaths(hes_apc_deaths)
-
-  # aggregate to (lsoa, month, avoidable condition)
-  hes_apc_cips_aggregated <- hes_apc_cips[condition != "other", .(value = sum(value)), by = .(lsoa, yearmonth, condition)]
-  hes_apc_deaths_aggregated <- hes_apc_deaths[condition != "other", .(fatalities = sum(value)), by = .(lsoa, yearmonth, condition)]
-
-  # format
-  setnames(hes_apc_cips_aggregated, "condition", "sub_measure")
-  setnames(hes_apc_deaths_aggregated, "condition", "sub_measure")
-  hes_apc_cips_aggregated[, measure := "case fatality ratio"]
-  hes_apc_cips_aggregated <- fillDataPoints(hes_apc_cips_aggregated, FALSE) # Do not treat as count data (i.e. maintain NAs)
-
-  # merge cips and 3-day deaths
-  case_fatality_single_measure <- merge(hes_apc_cips_aggregated, hes_apc_deaths_aggregated, by = c("lsoa", "yearmonth", "sub_measure"), all.x = TRUE)
-
-  # for those where there are no fatalities (NA - missing data) set fatalities to 0
-  case_fatality_single_measure[is.na(fatalities) & !is.na(value), fatalities := 0]
-
-  # compute cases and fatalities by any condition
-  case_fatality_any_measure <- case_fatality_single_measure[, .(value = sum(value, na.rm = TRUE), fatalities = sum(fatalities, na.rm = TRUE)), by = .(lsoa, yearmonth, measure, town, group, site_type, relative_month, diff_time_to_ed)]
-  case_fatality_any_measure[value == 0, ':=' (value = NA,
-    fatalities = NA)]
-  case_fatality_any_measure[, sub_measure := "any"]
-
-  # compute case fatality ratio
-  case_fatality_measure <- rbind(case_fatality_single_measure, case_fatality_any_measure)
-  case_fatality_site_measure <- case_fatality_measure[, .(value = sum(value, na.rm = TRUE), fatalities = sum(fatalities, na.rm = TRUE)), by = .(yearmonth, measure, sub_measure, town, group, site_type, relative_month)]
-  case_fatality_site_measure[value == 0, ':=' (value = NA,
-    fatalities = NA)]
-
-  case_fatality_measure[, ':=' (value = fatalities / value,
-    fatalities = NULL)]
-
-  case_fatality_site_measure[, ':=' (value = fatalities / value,
-    fatalities = NULL)]
-
-  # save
-  save(case_fatality_measure, file = createMeasureFilename("case fatality"), compress = "xz")
-  save(case_fatality_site_measure, file = createMeasureFilename("case fatality", "site"), compress = "bzip2")
 }
