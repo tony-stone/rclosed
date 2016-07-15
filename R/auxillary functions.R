@@ -135,7 +135,7 @@ attachAmbulanceService <- function(data) {
   load("data/site data.Rda")
 
   # Merge in catchment area data
-  return(merge(data,site_data[, .(town, ambulance_service)], by = "town", all.x = TRUE, allow.cartesian = TRUE))
+  return(merge(data, site_data[, .(town, ambulance_service)], by = "town", all.x = TRUE, allow.cartesian = TRUE))
 }
 
 classifyAvoidableDeaths <- function(data_in) {
