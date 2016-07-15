@@ -78,11 +78,11 @@ save_HES_AE_attendances_data <- function() {
   db_conn <- connect2DB()
 
   tbl_name <- "admissions_by_trust_lsoa_month"
-  add_logic <- "aeattendcat = '1' AND (aedepttype = '01' OR aedepttype = '99')"
+  add_logic <- "(aedepttype = '01' OR aedepttype = '99')"
   add_fields <- ""
 
   # Prepare query string to create temp table
-  sql_create_tbl <- getSqlUpdateQuery("apc", tbl_name, add_logic, add_fields)
+  sql_create_tbl <- getSqlUpdateQuery("ae", tbl_name, add_logic, add_fields)
 
   # Takes ~2mins
   pc <- proc.time()
