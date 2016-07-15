@@ -1,7 +1,11 @@
+#################################################
+# This needs re-writing such that each service's data is loaded only once
+
+
 ambulance_times_lsoa <- function(amb_times_data, service) {
 
   # reshape amb_times_data
-  amb_times_data_long <- melt(amb_times_data, id.vars = c("yearmonth", "lsoa"),
+  amb_times_data_long <- data.table::melt(amb_times_data, id.vars = c("yearmonth", "lsoa"),
     measure.vars = c("call_to_scene_any", "call_to_scene_conveying", "scene_to_dest", "call_to_dest", "dest_to_clear"),
     variable.name = "sub_measure", variable.factor = FALSE)
 
@@ -31,7 +35,7 @@ ambulance_times_lsoa <- function(amb_times_data, service) {
 ambulance_times_site <- function(amb_times_data, service) {
 
   # reshape amb_times_data
-  amb_times_data_long <- melt(amb_times_data, id.vars = c("yearmonth", "lsoa"),
+  amb_times_data_long <- data.table::melt(amb_times_data, id.vars = c("yearmonth", "lsoa"),
     measure.vars = c("call_to_scene_any", "call_to_scene_conveying", "scene_to_dest", "call_to_dest", "dest_to_clear"),
     variable.name = "sub_measure", variable.factor = FALSE)
 
@@ -58,27 +62,166 @@ ambulance_times_site <- function(amb_times_data, service) {
 
 save_ambulance_timings_measure <- function() {
 
-  ## re-write so works for ALL services
-#   load("data/site data.Rda")
-#   services <- tolower(unique(site_data$ambulance_service))
+  #   load("data/site data.Rda")
+  #   services <- tolower(unique(site_data$ambulance_service))
 
   services <- c("emas", "neas")
-  paths <- paste0("data/", services, "_amb_timings_data.Rda")
 
-  load(paths[1])
-  load(paths[2])
+  service_data_list <- lapply(services, function(service) {
+    amb_data <- load(paste0("data/amb_red_calls_", service, "_data.Rda"))
+    lsoa_level_measure_data <- ambulance_times_lsoa(get(amb_data), service)
 
-  amb_mean_times_measure_list <- list(ambulance_times_lsoa(emas_amb_data_red_calls, "emas"),
-    ambulance_times_lsoa(neas_amb_data_red_calls, "neas"))
+    site_level_measure_data <- ambulance_times_site(get(amb_data), service)
+    site_level_measure_data[, ':=' (diff_time_to_ed = as.integer(NA),
+      lsoa = as.character(NA))]
 
-  amb_mean_times_site_measure_list <- list(ambulance_times_site(emas_amb_data_red_calls, "emas"),
-    ambulance_times_site(neas_amb_data_red_calls, "neas"))
+    setcolorder(site_level_measure_data, colnames(lsoa_level_measure_data))
+
+    return(rbindlist(list(lsoa_level_measure_data, site_level_measure_data)))
+  })
 
   # bind lists
-  amb_mean_times_measure <- rbindlist(amb_mean_times_measure_list)
-  amb_mean_times_site_measure <- rbindlist(amb_mean_times_site_measure_list)
+  amb_mean_times <- rbindlist(service_data_list)
+
+  amb_mean_times_measure <- amb_mean_times[!is.na(lsoa)]
+  amb_mean_times_site_measure <- amb_mean_times[is.na(lsoa)]
+
+  amb_mean_times_site_measure[, c("diff_time_to_ed", "lsoa") := NULL]
+
+  rm(amb_mean_times)
+  gc()
 
   # save
   save(amb_mean_times_measure, file = createMeasureFilename("ambulance mean times"), compress = "bzip2")
   save(amb_mean_times_site_measure, file = createMeasureFilename("ambulance mean times", "site"))
+}
+
+
+
+
+save_ambulance_red_calls_measure <- function() {
+
+  #   load("data/site data.Rda")
+  #   services <- tolower(unique(site_data$ambulance_service))
+
+  services <- c("emas", "neas")
+
+  service_data_list <- lapply(services, function(service) {
+    amb_data <- load(paste0("data/amb_red_calls_", service, "_data.Rda"))
+    lsoa_level_measure_data <- ambulance_call_vols_lsoa(get(amb_data), service)
+
+    site_level_measure_data <- collapseLsoas2Sites(lsoa_level_measure_data)
+    site_level_measure_data[, ':=' (diff_time_to_ed = as.integer(NA),
+      lsoa = as.character(NA))]
+
+    return(rbind(lsoa_level_measure_data, site_level_measure_data))
+  })
+
+  # bind lists
+  amb_red_calls <- rbindlist(service_data_list)
+
+  amb_red_calls_measure <- amb_red_calls[!is.na(lsoa)]
+  amb_red_calls_site_measure <- amb_red_calls[is.na(lsoa)]
+
+  amb_red_calls_site_measure[, c("diff_time_to_ed", "lsoa") := NULL]
+
+  rm(amb_red_calls)
+  gc()
+
+  # save
+  save(amb_red_calls_measure, file = createMeasureFilename("ambulance red calls"), compress = "bzip2")
+  save(amb_red_calls_site_measure, file = createMeasureFilename("ambulance red calls", "site"))
+}
+
+
+ambulance_call_vols_lsoa <- function(amb_times_data, service) {
+  total_calls <- amb_times_data[, .(value = .N), by = .(yearmonth, lsoa)]
+  total_calls[, sub_measure := "total"]
+
+  hosp_transfer_calls <- amb_times_data[outcome_of_incident == "2", .(value = .N), by = .(yearmonth, lsoa)]
+  hosp_transfer_calls[, sub_measure := "hospital transfers"]
+
+  # combine
+  ambulance_call_vols <- rbind(total_calls, hosp_transfer_calls)
+  # add measure var
+  ambulance_call_vols[, measure := "ambulance red calls"]
+
+  # format
+  ambulance_call_vols_filled <- fillDataPoints(ambulance_call_vols, TRUE, TRUE)
+
+  # attach service name
+  ambulance_call_vols_filled_service <- attachAmbulanceService(ambulance_call_vols_filled)
+
+  # remove data for areas outwith service
+  ambulance_call_vols_measure <- ambulance_call_vols_filled_service[tolower(ambulance_service) == service]
+
+  ambulance_call_vols_measure[, ambulance_service := NULL]
+
+  return(ambulance_call_vols_measure)
+}
+
+
+save_ambulance_non_conveyance_measure <- function() {
+
+  #   load("data/site data.Rda")
+  #   services <- tolower(unique(site_data$ambulance_service))
+
+  services <- c("emas", "neas")
+
+  service_data_list <- lapply(services, function(service) {
+    amb_data <- load(paste0("data/amb_green_calls_", service, "_data.Rda"))
+    lsoa_level_measure_data <- ambulance_non_conveyance_lsoa(get(amb_data), service)
+
+    site_level_measure_data_no_frac <- collapseLsoas2Sites(lsoa_level_measure_data[sub_measure != "fraction not conveyed"])
+    site_level_measure_data <- addFractionSubmeasure(site_level_measure_data_no_frac, "green calls", "not conveyed green calls", "fraction not conveyed")
+    site_level_measure_data[, ':=' (diff_time_to_ed = as.integer(NA),
+        lsoa = as.character(NA))]
+
+    return(rbind(lsoa_level_measure_data, site_level_measure_data))
+  })
+
+  # bind lists
+  amb_green_calls <- rbindlist(service_data_list)
+
+  amb_non_conveyance_measure <- amb_green_calls[!is.na(lsoa)]
+  amb_non_conveyance_site_measure <- amb_green_calls[is.na(lsoa)]
+
+  amb_non_conveyance_site_measure[, c("diff_time_to_ed", "lsoa") := NULL]
+
+  rm(amb_green_calls)
+  gc()
+
+  # save
+  save(amb_non_conveyance_measure, file = createMeasureFilename("ambulance non-conveyance"), compress = "bzip2")
+  save(amb_non_conveyance_site_measure, file = createMeasureFilename("ambulance non-conveyance", "site"))
+}
+
+
+ambulance_non_conveyance_lsoa <- function(amb_times_data, service) {
+  total_calls <- amb_times_data[, .(value = .N), by = .(yearmonth, lsoa)]
+  total_calls[, sub_measure := "green calls"]
+
+  hosp_transfer_calls <- amb_times_data[outcome_of_incident == "3" | outcome_of_incident == "5", .(value = .N), by = .(yearmonth, lsoa)]
+  hosp_transfer_calls[, sub_measure := "not conveyed green calls"]
+
+  # combine
+  ambulance_call_vols <- rbind(total_calls, hosp_transfer_calls)
+  # add measure var
+  ambulance_call_vols[, measure := "ambulance non-conveyance"]
+
+  # format
+  ambulance_call_vols_filled <- fillDataPoints(ambulance_call_vols, TRUE, TRUE)
+
+  # add fraction
+  ambulance_call_vols_filled_frac <- addFractionSubmeasure(ambulance_call_vols_filled, "green calls", "not conveyed green calls", "fraction not conveyed")
+
+  # attach service name
+  ambulance_call_vols_filled_service <- attachAmbulanceService(ambulance_call_vols_filled_frac)
+
+  # remove data for areas outwith service
+  ambulance_call_vols_measure <- ambulance_call_vols_filled_service[tolower(ambulance_service) == service]
+
+  ambulance_call_vols_measure[, ambulance_service := NULL]
+
+  return(ambulance_call_vols_measure)
 }
