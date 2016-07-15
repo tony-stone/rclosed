@@ -3,7 +3,7 @@ save_case_fatality_measure <- function() {
   db_conn <- connect2DB()
 
   tbl_name <- "cips_by_diagnosis_site_lsoa_month"
-  add_logic <- "cips_finished = TRUE AND nights_admitted > 1 AND nights_admitted < 184 AND died = TRUE AND date_of_death_last = last_disdate"
+  add_logic <- "cips_finished = TRUE AND nights_admitted > 1 AND nights_admitted < 184 AND died = FALSE"
   add_fields <- "diag_01, diag_02, cause, startage"
 
   # Prepare query string to create temp table
@@ -68,9 +68,10 @@ save_case_fatality_measure <- function() {
 }
 
 # library(ggplot2)
-# ggplot(case_fatality_site_measure[town == "Rochdale" & sub_measure == "any"], aes(x = yearmonth, y = value, colour = town)) +
-#   geom_line(size = 1) +
-#   scale_x_date(name = "month", date_breaks = "3 months", date_labels = "%b %Y", expand = c(0, 15)) +
-#   scale_y_continuous(labels = scales::comma, limits = c(0, NA), expand = c(0.02, 0)) +
-#   theme(axis.text.x = element_text(face="bold", angle=90, hjust=0.0, vjust=0.3))
+#
+# ggplot(case_fatality_site_measure[sub_measure == "any"], aes(x = yearmonth, y = value, colour = town)) +
+# geom_line(size = 1) +
+# scale_x_date(name = "month", date_breaks = "3 months", date_labels = "%b %Y", expand = c(0, 15)) +
+# scale_y_continuous(labels = scales::comma, limits = c(0, 1), expand = c(0.02, 0)) +
+# theme(axis.text.x = element_text(face="bold", angle=90, hjust=0.0, vjust=0.3))
 
