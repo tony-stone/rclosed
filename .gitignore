@@ -6,6 +6,8 @@ packrat/src/
 # Exclude raw data but include processing scripts
 data-raw/**/*
 !data-raw/*
-# When making public we will not want to include any data
+# When making public we will not want to include any data or the test dir
 data/**/*
 data/*
+test/**/*
+test/*
