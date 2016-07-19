@@ -225,3 +225,13 @@ ambulance_non_conveyance_lsoa <- function(amb_times_data, service) {
 
   return(ambulance_call_vols_measure)
 }
+
+
+# # Test code
+# bla <- copy(amb_mean_times_site_measure)
+# bla[, missing := is.na(value)]
+# bla[, .N, by = .(town, sub_measure, missing)]
+#
+# op1 <- bla[sub_measure == "call_to_dest", .N, by = .(town, missing)]
+# setorderv(op1, c("town", "missing"))
+# write.table(op1, file = "clipboard", sep = "\t", row.names = FALSE)

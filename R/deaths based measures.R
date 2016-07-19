@@ -67,11 +67,29 @@ save_case_fatality_measure <- function() {
   save(case_fatality_site_measure, file = createMeasureFilename("case fatality", "site"), compress = "bzip2")
 }
 
+
+
 # library(ggplot2)
+# case_fatality_test <- copy(case_fatality_site[sub_measure == "any"])
+# case_fatality_test[, case_fatality_ratio := fatalities / cases]
 #
-# ggplot(case_fatality_site_measure[sub_measure == "any"], aes(x = yearmonth, y = value, colour = town)) +
+# case_fatality_test <- melt(case_fatality_test, id.vars = c("town", "yearmonth", "measure"),
+#   measure.vars = c("cases", "fatalities", "case_fatality_ratio"), variable.name = "sub_measure", value.name = "value", variable.factor = FALSE)
+#
+# case_fatality_test <- fillDataPoints(case_fatality_test, FALSE, FALSE)
+#
+# ggplot(case_fatality_test[sub_measure != "case_fatality_ratio"], aes(x = yearmonth, y = value, colour = sub_measure)) +
+# ggtitle("Cases and Fatalities for any of 16 serious emergency conditions ('rich in avoidable deaths')") +
+# facet_wrap(~ town, ncol = 2, scales = "fixed", shrink = TRUE, as.table = TRUE, drop = TRUE) +
 # geom_line(size = 1) +
 # scale_x_date(name = "month", date_breaks = "3 months", date_labels = "%b %Y", expand = c(0, 15)) +
-# scale_y_continuous(labels = scales::comma, limits = c(0, 1), expand = c(0.02, 0)) +
+# scale_y_continuous(labels = scales::comma, limits = c(0, NA), expand = c(0.02, 0)) +
 # theme(axis.text.x = element_text(face="bold", angle=90, hjust=0.0, vjust=0.3))
-
+#
+# ggplot(case_fatality_test[sub_measure == "case_fatality_ratio"], aes(x = yearmonth, y = value)) +
+#   ggtitle("Cases - Fatality Ratio for any of 16 serious emergency conditions ('rich in avoidable deaths')") +
+#   facet_wrap(~ town, ncol = 2, scales = "fixed", shrink = TRUE, as.table = TRUE, drop = TRUE) +
+#   geom_line(size = 1) +
+#   scale_x_date(name = "month", date_breaks = "3 months", date_labels = "%b %Y", expand = c(0, 15)) +
+#   scale_y_continuous(labels = scales::comma, limits = c(0, 0.5), expand = c(0.02, 0), breaks = 0:5/10) +
+#   theme(axis.text.x = element_text(face="bold", angle=90, hjust=0.0, vjust=0.3))
