@@ -65,7 +65,7 @@ save_ambulance_timings_measure <- function() {
   #   load("data/site data.Rda")
   #   services <- tolower(unique(site_data$ambulance_service))
 
-  services <- c("emas", "neas")
+  services <- c("emas", "neas", "nwas")
 
   service_data_list <- lapply(services, function(service) {
     amb_data <- load(paste0("data/amb_red_calls_", service, "_data.Rda"))
@@ -104,7 +104,7 @@ save_ambulance_red_calls_measure <- function() {
   #   load("data/site data.Rda")
   #   services <- tolower(unique(site_data$ambulance_service))
 
-  services <- c("emas", "neas")
+  services <- c("emas", "neas", "nwas")
 
   service_data_list <- lapply(services, function(service) {
     amb_data <- load(paste0("data/amb_red_calls_", service, "_data.Rda"))
@@ -166,7 +166,7 @@ save_ambulance_non_conveyance_measure <- function() {
   #   load("data/site data.Rda")
   #   services <- tolower(unique(site_data$ambulance_service))
 
-  services <- c("emas", "neas")
+  services <- c("emas", "neas", "nwas")
 
   service_data_list <- lapply(services, function(service) {
     amb_data <- load(paste0("data/amb_green_calls_", service, "_data.Rda"))

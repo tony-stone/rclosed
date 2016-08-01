@@ -17,4 +17,10 @@ genClosedMeasures <- function() {
 
   # Deaths based measures, ??mins
   save_case_fatality_measure()
+
+  #Ambulance based measures, ??mins
+  save_ambulance_timings_measure()
+  save_ambulance_red_calls_measure()
+  save_ambulance_non_conveyance_measure()
+
 }
