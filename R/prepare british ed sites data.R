@@ -11,15 +11,14 @@ prepareEdSites <- function() {
   stopifnot(!any(c(is.na(ed_sites_spatial$easting), is.na(ed_sites_spatial$northing))))
 
   ## Convert to spatial data
-  coordinates(ed_sites_spatial) <- ed_sites_spatial[, .(as.integer(easting), as.integer(northing))]
+  sp::coordinates(ed_sites_spatial) <- ed_sites_spatial[, .(as.integer(easting), as.integer(northing))]
 
   # Set projection
-  proj4string(ed_sites_spatial) <- CRS(OSGB36_projection_str)
+  sp::proj4string(ed_sites_spatial) <- sp::CRS(OSGB36_projection_str)
 
   # Transform to WGS84 coordinate system
-  ed_sites_spatial <- spTransform(ed_sites_spatial, WGS84_projection_str)
+  ed_sites_spatial <- sp::spTransform(ed_sites_spatial, WGS84_projection_str)
 
   # Save
   save(ed_sites_spatial, file = "data/british ed sites spatial.Rda", compress = "xz")
 }
-

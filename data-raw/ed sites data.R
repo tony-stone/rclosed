@@ -84,7 +84,7 @@ ed_sites_not_english[, ':=' (english = FALSE,
 
 # Read in pre-2012 closures -----------------------------------------------
 
-ed_sites_pre2012 <- data.table(read.xlsx("data-raw/site data/site data - 2016.05.18.xlsx"))[site_type == "intervention", .(site_name = clean_hospital_name(site_name), hospital_name = clean_hospital_name(site_name), trust_code, postcode = clean_code(postcode), closure_date = as.Date(intervention_date, origin = "1899-12-30"), english = TRUE)]
+ed_sites_pre2012 <- data.table(read.xlsx("data-raw/site data/site data - 2016.05.18.xlsx"))[site_type == "intervention", .(site_name = clean_hospital_name(site_name), hospital_name = clean_hospital_name(site_name), trust_code, postcode = clean_code(postcode))]
 
 
 # clean data (site name, trust name and postcode) -------------------------
@@ -230,7 +230,6 @@ stopifnot(all(ed_sites_data[, .(distinct_pcodes = sum(!is.na(unique(postcode))))
 # Create list of ED sites -------------------------------------------------
 
 ed_sites <- unique(ed_sites_data[, .(site_name, hospital_name)])
-ed_sites[, english := TRUE]
 
 # Merge in trust and postcode data
 ed_sites <- merge(ed_sites, unique(ed_sites_data[!is.na(trust_code), .(site_name, trust_code)]), by = "site_name", all.x = TRUE)
@@ -239,35 +238,72 @@ stopifnot(all(!is.na(ed_sites[, trust_code])) & all(!is.na(ed_sites[, postcode])
 
 # Add A&E's which closed prior to 2012
 stopifnot(!any(ed_sites_pre2012$site_name %in% ed_sites$site_name))
-ed_sites <- rbind(ed_sites[, closure_date := as.Date(NA)], ed_sites_pre2012)
+ed_sites <- rbind(ed_sites, ed_sites_pre2012)
+
+# add mising hospitals
+missing_eds <- data.table(site_name = c("frenchay", "newcastle general", "derbyshire royal infirmary"), hospital_name = c("frenchay", "newcastle general", "derbyshire royal infirmary"), trust_code = c("RVJ", "RTD", "RTG"), postcode = c("BS16 1LE", "NE4 6BE", "DE1 2QY"))
+stopifnot(!any(missing_eds$site_name %in% ed_sites$site_name))
+ed_sites <- rbind(ed_sites, missing_eds)
+
+# All English sites thus far
+ed_sites[, english := TRUE]
 
 # Add and combine comments data
 ed_sites <- merge(ed_sites, ed_sites_data[data_source == "Abdulwahid 2015" & !is.na(comments), .(site_name, abdulwahid_comments = comments)], by = "site_name", all.x = TRUE)
 
-# Tony Stone comments
-ed_sites[site_name %in% c("north tyneside general", "hexham general", "wansbeck general"), ':=' (comments = "A&E closed June 2015. North Tyneside and Northumberland re-structured their A&E provision. See also northumbria specialist emergency care.",
-  closure_date = as.Date("2015-06-01"))]
-ed_sites[site_name == "northumbria specialist emergency care", ':=' (comments = "A&E opened June 2015. North Tyneside and Northumberland re-structured their A&E provision. See also north tyneside general, hexham general, and wansbeck general.",
-  open_date = as.Date("2015-06-01"))]
-ed_sites[site_name == "trafford general", ':=' (comments = "Urgent Care Centre. Type 1 A&E until 28 Nov 2013.",
+## Tony Stone comments
+
+# closures
+ed_sites[site_name == "trafford general", ':=' (comments = "Urgent Care Centre. Type 1 A&E until 28 Nov 2013 (source: Central Manchester University Hospitals NHS FT website)",
   closure_date = as.Date("2013-11-28"))]
-ed_sites[site_name == "kent and canterbury", ':=' (comments = "Emergency Care Centre, no trauma. Not full Type 1 A&E (source: 2015 CQC report / BBC News.)",
+ed_sites[site_name == "kent and canterbury", ':=' (comments = "Emergency Care Centre, no trauma. Not full Type 1 A&E (source: 2015 CQC report / BBC News)",
   closure_date = as.Date("2005-01-01"))]
-ed_sites[site_name == "solihull", ':=' (comments = "No ambulance-borne trauma care.  Not full Type 1 A&E (source: 2015 CQC report / UK Parliament publications.)",
+ed_sites[site_name == "solihull", ':=' (comments = "No ambulance-borne trauma care.  Not full Type 1 A&E (source: 2015 CQC report / UK Parliament publications)",
   closure_date = as.Date("2002-01-01"))]
-ed_sites[site_name == "county (ST16 3SA)", ':=' (comments = "Limited hours: 8am - 10pm.  Not full Type 1 A&E (by definition) (source: 'The Express & Star' website).",
+ed_sites[site_name == "county (ST16 3SA)", ':=' (comments = "Limited hours: 8am - 10pm.  Not full Type 1 A&E (by definition) (source: 'The Express & Star' website)",
   closure_date = as.Date("2011-12-01"))]
-ed_sites[site_name == "pontefract", comments := "Some overnight closures in 2014."]
-ed_sites[site_name == "central middlesex", ':=' (comments = "Urgent Care Centre. Type 1 A&E until 10 Sept 2014.",
+ed_sites[site_name == "pontefract", comments := "Some overnight closures in 2014. (Source: 2015 CQC Report)"]
+ed_sites[site_name == "central middlesex", ':=' (comments = "Urgent Care Centre. Type 1 A&E until 10 Sept 2014 (source: Brent Urgent Care Centre website)",
   closure_date = as.Date("2014-09-10"))]
+ed_sites[site_name == "chase farm", ':=' (comments = "Urgent Care Centre. Type 1 A&E until 9 Dec 2013 (source: North Middlesex University Hospital NHS Trust website)",
+  closure_date = as.Date("2013-12-09"))]
+ed_sites[site_name == "hemel hempstead", ':=' (comments = "A&E closed 11 Mar 2009 (source: West Herefordshire Hospitals NHS Trust website)",
+  closure_date = as.Date("2009-03-11"))]
+ed_sites[site_name == "bishop auckland general", ':=' (comments = "A&E closed 1 Oct 2009 (source: BBC News website)",
+  closure_date = as.Date("2009-10-01"))]
+ed_sites[site_name == "newark", ':=' (comments = "A&E closed Apr 2011( source: Sherwood Forest Hospitals NHS FT website)",
+  closure_date = as.Date("2011-04-01"))]
+ed_sites[site_name == "rochdale infirmary", ':=' (comments = "A&E replaced by Urgent Care Centre on 4 Apr 2011 (source: Heywood, Middleton and Rochdale CCG website)",
+  closure_date = as.Date("2011-04-04"))]
+ed_sites[site_name == "university hospital of hartlepool", ':=' (comments = "A&E closed 2 Aug 2011 (source: 'East Durham Trust' website)",
+  closure_date = as.Date("2011-08-02"))]
 
-ed_sites[site_name == "hemel hempstead", comments := "A&E closed Mar 2009."]
-ed_sites[site_name == "bishop auckland general", comments := "A&E closed Oct 2009."]
-ed_sites[site_name == "newark", comments := "A&E closed Apr 2011."]
-ed_sites[site_name == "rochdale infirmary", comments := "A&E closed Apr 2011."]
-ed_sites[site_name == "university hospital of hartlepool", comments := "A&E closed Aug 2011."]
+# Northumbria reconfig
+ed_sites[site_name %in% c("north tyneside general", "hexham general", "wansbeck general"), ':=' (comments = "A&E closed June 2015. North Tyneside and Northumberland re-structured their A&E provision. See also northumbria specialist emergency care (source: Northumbria Healthcare NHS FT website)",
+  closure_date = as.Date("2015-06-01"))]
+ed_sites[site_name == "northumbria specialist emergency care", ':=' (comments = "A&E opened June 2015. North Tyneside and Northumberland re-structured their A&E provision. See also north tyneside general, hexham general, and wansbeck general (source: Northumbria Healthcare NHS FT website)",
+  open_date = as.Date("2015-06-16"))]
 
-# combine
+# Bristol reconfig
+ed_sites[site_name == "frenchay", ':=' (comments = "A&E transferred to southmead on 19 May 2014 (source: North Bristol NHS Trust website)",
+  closure_date = as.Date("2014-05-19"))]
+ed_sites[site_name == "southmead", ':=' (comments = "A&E transferred from frenchay on 19 May 2014 (source: North Bristol NHS Trust website)",
+  open_date = as.Date("2014-05-19"))]
+
+# Newcastle reconfig
+ed_sites[site_name == "newcastle general", ':=' (comments = "A&E transferred to royal victoria infirmary on 17 Nov 2010 (source: Newcastle upon Tyne Hospitals NHS FT website)",
+  closure_date = as.Date("2010-11-17"))]
+ed_sites[site_name == "royal victoria infirmary", ':=' (comments = "A&E transferred from newcastle general on 17 Nov 2010 (source: Newcastle upon Tyne Hospitals NHS FT website)",
+  open_date = as.Date("2010-11-17"))]
+
+# Derby reconfig
+ed_sites[site_name == "derbyshire royal infirmary", ':=' (comments = "A&E transferred to royal derby on 20 May 2009 (source: BBC News website)",
+  closure_date = as.Date("2009-05-20"))]
+ed_sites[site_name == "royal derby", ':=' (comments = "A&E transferred from derbyshire royal infirmary on 20 May 2009 (source: BBC News website)",
+  open_date = as.Date("2009-05-20"))]
+
+
+## combine comments
 ed_sites[!is.na(abdulwahid_comments) & !is.na(comments), comments := paste0(comments, " (Abdulwahid 2015 comments: ", abdulwahid_comments, ")")]
 ed_sites[!is.na(abdulwahid_comments) & is.na(comments), comments := paste0("(Abdulwahid 2015 comments: ", abdulwahid_comments, ")")]
 ed_sites[, abdulwahid_comments := NULL]
