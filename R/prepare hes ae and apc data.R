@@ -23,7 +23,7 @@ prepare_relevant_attendances <- function(lsoas) {
 }
 
 
-# Creates new DB table to store only relevant HES APC episodes based on supplied LSOAs
+# Creates new DB table to store relevant HES APC episodes together with details about the CIPS to which they belong
 save_relevant_admitted_care_episodes <- function() {
 
   db_conn <- connect2DB()
