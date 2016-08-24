@@ -65,7 +65,7 @@ save_ambulance_timings_measure <- function() {
   #   load("data/site data.Rda")
   #   services <- tolower(unique(site_data$ambulance_service))
 
-  services <- c("emas", "neas", "nwas")
+  services <- c("emas", "neas", "nwas", "yas")
 
   service_data_list <- lapply(services, function(service) {
     amb_data <- load(paste0("data/amb_red_calls_", service, "_data.Rda"))
@@ -104,7 +104,7 @@ save_ambulance_red_calls_measure <- function() {
   #   load("data/site data.Rda")
   #   services <- tolower(unique(site_data$ambulance_service))
 
-  services <- c("emas", "neas", "nwas")
+  services <- c("emas", "neas", "nwas", "yas")
 
   service_data_list <- lapply(services, function(service) {
     amb_data <- load(paste0("data/amb_red_calls_", service, "_data.Rda"))
@@ -166,7 +166,7 @@ save_ambulance_non_conveyance_measure <- function() {
   #   load("data/site data.Rda")
   #   services <- tolower(unique(site_data$ambulance_service))
 
-  services <- c("emas", "neas", "nwas")
+  services <- c("emas", "neas", "nwas", "yas")
 
   service_data_list <- lapply(services, function(service) {
     amb_data <- load(paste0("data/amb_green_calls_", service, "_data.Rda"))
@@ -201,11 +201,11 @@ ambulance_non_conveyance_lsoa <- function(amb_times_data, service) {
   total_calls <- amb_times_data[, .(value = .N), by = .(yearmonth, lsoa)]
   total_calls[, sub_measure := "green calls"]
 
-  hosp_transfer_calls <- amb_times_data[outcome_of_incident == "3" | outcome_of_incident == "5", .(value = .N), by = .(yearmonth, lsoa)]
-  hosp_transfer_calls[, sub_measure := "not conveyed green calls"]
+  non_convey_calls <- amb_times_data[outcome_of_incident == "3" | outcome_of_incident == "5", .(value = .N), by = .(yearmonth, lsoa)]
+  non_convey_calls[, sub_measure := "not conveyed green calls"]
 
   # combine
-  ambulance_call_vols <- rbind(total_calls, hosp_transfer_calls)
+  ambulance_call_vols <- rbind(total_calls, non_convey_calls)
   # add measure var
   ambulance_call_vols[, measure := "ambulance non-conveyance"]
 

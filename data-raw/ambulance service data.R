@@ -154,14 +154,98 @@ save(emas_amb_data_green_calls, file = "data/amb_green_calls_emas_data.Rda", com
 
 # YAS ---------------------------------------------------------------------
 
-YAS_pattern <- as.character(fread("data-raw/Ambulance service data/YAS/Apr 10 - Sep 10 Data.csv", sep = "?", nrows = 1L, header = FALSE, colClasses = "character"))
-YAS_num_cols <- length(gregexpr(pattern = "\t", YAS_pattern)[[1]]) + 1
+# all we can get from this data are call volumes and response times.
+YAS_pattern <- fread("data-raw/Ambulance service data/YAS/Call data 19.09.07 - 31.04.14.csv", sep = "`", header = FALSE, colClasses = "character")
 
-yas_amb_data <- data.table(input.file("data-raw/Ambulance service data/YAS/Apr 10 - Sep 10 Data.csv",  formatter = dstrsplit, col_types = rep("character", YAS_num_cols), sep = "\t"))
+# How many rows?
+YAS_total_rows <- nrow(YAS_pattern)
 
-yas_amb_data[, paste0("V", 38:39) := NULL]
-setnames(yas_amb_data, make.names(yas_amb_data[1,]))
-unique(yas_amb_data[, Journey.Type])
+# Remove the byte order mark from start of file - microsoft, huh.
+YAS_top_line <- data.table(sub("ï»¿", "", YAS_pattern[1], fixed = TRUE))
+YAS_pattern <- rbind(YAS_top_line, YAS_pattern[2:YAS_total_rows])
+
+# Modify chief complaint value that contains an unquoted comma
+YAS_pattern[, V1 := sub("Traumatic Injuries, Specific", "Traumatic Injuries Specific", V1, fixed = TRUE)]
+
+# Remove all quotes
+YAS_pattern[, V1 := gsub("\"", "", V1, fixed = TRUE)]
+
+# We expect 23 commas (to separate 24 fields)
+YAS_pattern[, commas := stringr::str_count(V1, stringr::fixed(","))]
+YAS_pattern[, .N, by = commas]
+
+# 2913  corrections to be made.  Mostly they appear to be in field 23 - "dispatch_code_description" - but some are also in field 30 - "OtherAgencyNoSendCodeTEXT" and also age
+# Field 23 is free text and often contains commas - so we quote field 23
+YAS_pattern[, cleaned_record := sub("^((?:[^,]*,){22})(.*)((?:,NHSD|,NULL|,PSIAM)(?:,[^,]*,))(.*)((?:,[^,]*)(?:,0|,1)(?:,[^,]*,))(.*)((?:,[^,]*){4})$", "\\1\"\\2\"\\3\"\\4\"\\5\"\\6\"\\7", V1, perl = TRUE)]
+
+# Now, finally, read data as a data.table
+yas_amb_data <- data.table(iotools::dstrsplit(YAS_pattern[, cleaned_record], col_types = rep("character", 34), sep = ",", quote = "\""))
+
+rm(YAS_pattern)
+gc()
+
+# Set field names
+field_names <- c("anonymous_id",
+  "call_stopped_reason",
+  "time_clock_start",
+  "time_of_call",
+  "call_type",
+  "chief_complaint",
+  "urgency_level",
+  "interval_allocation_from_time_of_call",
+  "interval_response_time_any",
+  "urgency_level_time_at_scene",
+  "interval_response_time_conveying",
+  "time_at_switchboard",
+  "time_of_call_2",
+  "time_clock_start_2",
+  "time_at_switchboard_2",
+  "time_call_answered",
+  "time_reason_for_call",
+  "time_chief_complaint",
+  "TimeClinQualClockStart",
+  "PerfBestRespClinQual",
+  "PerfBestConvRespClinQual",
+  "dispatch_code",
+  "XXX.dispatch_code_description",
+  "OtherAgencyType",
+  "MainPatientDiagnosis",
+  "age",
+  "MethodOfCall",
+  "PerfConvRespExists",
+  "OtherAgencyNoSendCodePSIAM",
+  "OtherAgencyNoSendCodeTEXT",
+  "HCP_Emergency",
+  "call_source",
+  "post_district",
+  "lsoa")
+setnames(yas_amb_data, field_names)
+
+# Keep only valid calls
+valid_call_stop <- c('Back to Bed', 'Clinical Advisor dealing', 'Diabetic Referral', 'ECP Dealing', 'Falls Referral', 'NULL', 'Patient Treated On Scene', 'Referred to GP', 'Required but not conveyed', 'Resolved Through TEL Advice')
+yas_amb_data <- yas_amb_data[!is.na(yearmonth) & !is.na(lsoa) & call_stopped_reason %in% valid_call_stop]
+
+# assign outcome
+yas_amb_data[, outcome_of_incident := "1"]
+yas_amb_data[call_stopped_reason %in% c('Clinical Advisor dealing', 'Resolved Through TEL Advice'), outcome_of_incident := "3"]
+yas_amb_data[call_stopped_reason %in% c('Back to Bed', 'Diabetic Referral', 'ECP Dealing', 'Falls Referral', 'Patient Treated On Scene', 'Referred to GP', 'Required but not conveyed'), outcome_of_incident := "5"]
+
+
+## assign month of call
+yas_amb_data[, ':=' (yearmonth = as.Date(lubridate::fast_strptime(paste0(substr(time_at_switchboard, 1, 7), "-01"), format = "%Y-%m-%d", lt = FALSE)),
+  call_to_scene_any = as.integer(lubridate::fast_strptime(substr(head(yas_amb_data$interval_response_time_any), 1, 19), format = "%Y-%m-%d %H:%M:%S", lt = FALSE) - as.POSIXct("1900-01-01 00:00.00 UTC")),
+  call_to_scene_conveying = as.integer(NA),
+  scene_to_dest = as.integer(NA),
+  call_to_dest = as.integer(NA),
+  dest_to_clear = as.integer(NA))]
+
+yas_amb_data[call_to_scene_any < 0, call_to_scene_any := 0]
+
+yas_amb_data_red_calls <- yas_amb_data[call_type == "Emergency" & urgency_level %in% c('Purple', 'Red', 'Red1', 'Red2', ' 1 R2 Medical'), .(yearmonth, lsoa, outcome_of_incident, call_to_scene_any, call_to_scene_conveying, scene_to_dest, call_to_dest, dest_to_clear)]
+yas_amb_data_green_calls <- yas_amb_data[call_type == "Emergency" & !(urgency_level %in% c('Purple', 'Red', 'Red1', 'Red2', ' 1 R2 Medical')), .(yearmonth, lsoa, outcome_of_incident)]
+
+save(yas_amb_data_red_calls, file = "data/amb_red_calls_yas_data.Rda", compress = "bzip2")
+save(yas_amb_data_green_calls, file = "data/amb_green_calls_yas_data.Rda", compress = "bzip2")
 
 
 # NEAS --------------------------------------------------------------------
