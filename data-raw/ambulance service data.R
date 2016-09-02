@@ -35,7 +35,11 @@ convertTimes <- function(t1) {
   # When the clocks go back in October the time >= 01:00 and < 02:00 is ambiguous,
   # it could be BST or GMT. We force it to be the earlier, BST.
 
-  # When the clocks go forward in March the time between >= 01:00 and < 02:00 do not exist
+  # When the clocks go forward in March the time between >= 01:00 and < 02:00 (GMT or BST) do not exist
+
+  # Who knew (non-relativistic) times could be so annoying?!
+
+  t1[t1 == "NULL"] <- NA
 
   dst_start_dates <- as.Date(paste0(2008:2014, "-03-", c(30, 29, 28, 27, 25, 31, 30)))
   logical_index <- as.Date(substr(t1, 1, 10)) %in% dst_start_dates & substr(t1, 12, 13) == "01"
@@ -51,6 +55,7 @@ convertTimes <- function(t1) {
 }
 
 adjustDST <- function(t1, t2, t2_date_known = FALSE) {
+  # We expect t2 to be after t1, however it appears not to.  If we have reason to beleive this is due to a change in DST status we correct otherwise
   # t1 is known though ambiguous with the hour preceding DST end time
   # t2 does not have a well defined date or tz
 
@@ -169,10 +174,6 @@ YAS_pattern[, V1 := sub("Traumatic Injuries, Specific", "Traumatic Injuries Spec
 
 # Remove all quotes
 YAS_pattern[, V1 := gsub("\"", "", V1, fixed = TRUE)]
-
-# We expect 23 commas (to separate 24 fields)
-YAS_pattern[, commas := stringr::str_count(V1, stringr::fixed(","))]
-YAS_pattern[, .N, by = commas]
 
 # 2913  corrections to be made.  Mostly they appear to be in field 23 - "dispatch_code_description" - but some are also in field 30 - "OtherAgencyNoSendCodeTEXT" and also age
 # Field 23 is free text and often contains commas - so we quote field 23
@@ -345,6 +346,8 @@ nwas_amb_data_list <- lapply(nwas_src_filepaths, function(filepath) {
   return(fread(filepath, sep = ",", header = TRUE, na.strings = c("NULL", "Unknown", ""), colClasses = "character"))
 })
 
+nwas_amb_data <- rbindlist(nwas_amb_data_list)
+
 # Standardise field names
 field_names <- c("anonymous_id", "call_source", "date_of_call", "call_type",
   "age", "sex", "within_service_area", "postcode_district", "lsoa",
@@ -396,3 +399,215 @@ nwas_amb_data_red_calls <- nwas_amb_data_red[, .(yearmonth, lsoa, outcome_of_inc
 
 save(nwas_amb_data_red_calls, file = "data/amb_red_calls_nwas_data.Rda", compress = "bzip2")
 save(nwas_amb_data_green_calls, file = "data/amb_green_calls_nwas_data.Rda", compress = "bzip2")
+
+
+
+# EoE ---------------------------------------------------------------------
+# PROBLEMS - data requires winsorizing - some of it is bonkers - days or years for a vehicle to arrive on scene
+
+
+# source data filenames
+eoe_src_filepaths <- paste0("data-raw/Ambulance service data/EoE/closED data extract - ", c("Mar 2007", paste0("Apr ", 2008:2013)), " - Mar ", 2008:2014, ".txt")
+
+# get headers
+eoe_col_names <- as.character(fread(eoe_src_filepaths[1], sep = ",", header = FALSE, colClasses = "character", skip = 6, nrows = 1))
+
+# Load all the data
+eoe_amb_data_list <- lapply(eoe_src_filepaths, function(filepath) {
+  data <- fread(filepath, sep = "`", header = FALSE, colClasses = "character", skip = 6)
+
+  # ensure columns consistent throughout files
+  stopifnot(data[1, V1] == paste0(eoe_col_names, collapse = ","))
+
+  last_valid_row <- nrow(data)
+  if(data[last_valid_row] == "Warning: Null value is eliminated by an aggregate or other SET operation.") {
+    last_valid_row <- last_valid_row - 1
+  }
+  return(data[2:last_valid_row])
+})
+
+# Put all the data together
+eoe_amb_data_1col <- rbindlist(eoe_amb_data_list)
+
+# remove all quotes
+eoe_amb_data_1col[, V1 := gsub("\"", "", V1, fixed = TRUE)]
+
+# Quote "destination conveyed" field (field 23)
+eoe_amb_data_1col[, cleaned_record := sub("^((?:[^,]*,){22})(.*)((?:,[^,]*){3})$", "\\1\"\\2\"\\3", V1, perl = TRUE)]
+
+#Read data as data table
+eoe_amb_data <- data.table(iotools::dstrsplit(eoe_amb_data_1col[, cleaned_record], col_types = rep("character", 26), sep = ",", quote = "\""))
+
+# remove data no longer required
+rm(eoe_amb_data_list, eoe_amb_data_1col)
+gc()
+
+# Standardise field names
+field_names <- c("anonymous_id", "X_cad_system", "call_source", "date_of_call", "call_type",
+  "age", "sex", "within_service_area", "postcode_district", "lsoa",
+  "time_at_switchboard", "time_call_answered", "time_chief_complaint",
+  "time_first_vehicle_assigned",
+  "urgency_level", "dispatch_code", "time_first_resource_on_scene",
+  "time_conveying_resource_on_scene", "time_at_destination", "time_clear",
+  "first_resource_type", "conveying_resource_type", "destination_conveyed",
+  "X_csd_only", "X_incident_disposition", "outcome_of_incident")
+setnames(eoe_amb_data, field_names)
+
+# Change date field format
+eoe_amb_data[, yearmonth := as.Date(lubridate::fast_strptime(paste0(substr(date_of_call, 1, 7), "-01"), format = "%Y-%m-%d", lt = FALSE))]
+
+
+
+
+
+load("data/catchment area set final.Rda")
+lsoas <- unique(catchment_area_set_final$lsoa)
+rel_calls <- copy(eoe_amb_data[lsoa %in% lsoas & urgency_level %in% c("R1", "R2") & call_type == "Emergency" & outcome_of_incident == "1", .(X_cad_system, yearmonth, time_call_answered, time_chief_complaint, time_first_resource_on_scene)])
+
+rel_calls[time_call_answered == "NULL", time_call_answered := NA]
+rel_calls[time_first_resource_on_scene == "NULL", time_first_resource_on_scene := NA]
+rel_calls[time_chief_complaint == "NULL", time_chief_complaint := NA]
+
+rel_calls[, ':=' (time_call_answered1 = convertTimes(time_call_answered),
+  time_first_resource_on_scene1 = convertTimes(time_first_resource_on_scene))]
+
+rel_calls[, call_to_scene_any := as.integer(time_first_resource_on_scene1 - time_call_answered1)]
+
+rel_calls[call_to_scene_any < 0, call_to_scene_any := NA]
+
+rel_calls[, c2s_pct := as.double(quantile(call_to_scene_any, probs = 0.8, na.rm = TRUE, type = 8)[1]), by = yearmonth]
+
+rel_calls[call_to_scene_any <= c2s_pct, call_to_scene_valid := call_to_scene_any]
+rel_calls[call_to_scene_any > c2s_pct, call_to_scene_valid := NA]
+
+
+bla <- rel_calls[, .(.N, valid_ans_pc = round(sum(!is.na(time_call_answered)) / length(time_call_answered) * 100, 1), valid_scene_pc = round(sum(!is.na(time_first_resource_on_scene)) / length(time_first_resource_on_scene) * 100, 1), valid_chief_pc = round(sum(!is.na(time_chief_complaint)) / length(time_chief_complaint) * 100, 1), valid_call_to_scene_any  = round(sum(!is.na(call_to_scene_any)) / length(call_to_scene_any) * 100, 1), mean_call_to_scene_any = round(mean(call_to_scene_any, na.rm = TRUE) / 60), mean_call_to_scene_valid = round(mean(call_to_scene_valid, na.rm = TRUE) / 60), median_call_to_scene_any = round(median(call_to_scene_any, na.rm = TRUE) / 60), bs_call_to_scene_any = sum(call_to_scene_any > 3600, na.rm = TRUE) / length(call_to_scene_any) * 100), by = .(yearmonth)]
+
+
+rel_calls[, ':=' (valid_ans = !is.na(time_call_answered),
+  valid_scene = !is.na(time_first_resource_on_scene))]
+bla <- rel_calls[, .(.N, valid_ans_pc = round(sum(valid_ans) / length(valid_ans) * 100, 1), valid_scene_pc = round(sum(valid_scene) / length(valid_scene) * 100, 1)), by = .(X_cad_system, yearmonth)]
+
+bla[, calls := sum(N), by = yearmonth]
+bla[, pc := round(N / calls * 100, 1)]
+
+
+
+data <- copy(eoe_amb_data_red[, .(yearmonth, call_to_scene_any1)])
+
+data[call_to_scene_any1 < 0, call_to_scene_any1 := -1]
+data[call_to_scene_any1 > 86400, call_to_scene_any1 := 86401]
+
+ggplot2::ggplot(data, ggplot2::aes(call_to_scene_any1)) +
+#  ggplot2::facet_wrap(~ yearmonth, ncol = 2, scales = "fixed", shrink = TRUE, as.table = TRUE, drop = TRUE) +
+  ggplot2::geom_histogram() +
+  ggplot2::scale_x_continuous(limits = c(-2, 86402))
+
+
+
+
+eoe_amb_data_red <- eoe_amb_data[urgency_level %in% c("R1", "R2") & call_type == "Emergency", .(yearmonth, lsoa, outcome_of_incident, time_at_switchboard, time_call_answered, time_first_resource_on_scene, time_conveying_resource_on_scene, time_at_destination, time_clear)]
+eoe_amb_data_green_calls <- eoe_amb_data[!(urgency_level %in% c("R1", "R2")) & call_type == "Emergency", .(yearmonth, lsoa, outcome_of_incident)]
+
+eoe_amb_data_red[, ':=' (time_at_switchboard = convertTimes(time_at_switchboard),
+  time_call_answered = convertTimes(time_call_answered),
+  time_first_resource_on_scene = convertTimes(time_first_resource_on_scene),
+  time_conveying_resource_on_scene = convertTimes(time_conveying_resource_on_scene),
+  time_at_destination = convertTimes(time_at_destination),
+  time_clear = convertTimes(time_clear))]
+
+eoe_amb_data_red <- eoe_amb_data_red[!is.na(time_first_resource_on_scene)]
+
+eoe_amb_data_red[time_call_answered < time_at_switchboard, time_call_answered := adjustDST(time_at_switchboard, time_call_answered, TRUE)]
+eoe_amb_data_red[time_first_resource_on_scene < time_at_switchboard, time_first_resource_on_scene := adjustDST(time_at_switchboard, time_first_resource_on_scene, TRUE)]
+eoe_amb_data_red[time_conveying_resource_on_scene < time_call_answered, time_conveying_resource_on_scene := adjustDST(time_call_answered, time_conveying_resource_on_scene, TRUE)]
+eoe_amb_data_red[time_at_destination < time_conveying_resource_on_scene, time_at_destination := adjustDST(time_conveying_resource_on_scene, time_at_destination, TRUE)]
+eoe_amb_data_red[time_clear < time_at_destination, time_clear := adjustDST(time_at_destination, time_clear, TRUE)]
+
+eoe_amb_data_red[, ':=' (call_to_scene_any1 = as.integer(time_first_resource_on_scene - time_at_switchboard),
+  call_to_scene_any2 = as.integer(time_first_resource_on_scene - time_call_answered),
+  call_to_scene_conveying = as.integer(time_conveying_resource_on_scene - time_call_answered),
+  scene_to_dest = as.integer(time_at_destination - time_conveying_resource_on_scene),
+  call_to_dest = as.integer(time_at_destination - time_call_answered),
+  dest_to_clear = as.integer(time_clear - time_at_destination))]
+
+eoe_amb_data_red[call_to_scene_any < 0, call_to_scene_any := 0]
+eoe_amb_data_red[call_to_scene_conveying < 0, call_to_scene_conveying := 0]
+eoe_amb_data_red[scene_to_dest < 0, scene_to_dest := 0]
+eoe_amb_data_red[call_to_dest < 0, call_to_dest := 0]
+eoe_amb_data_red[dest_to_clear < 0, dest_to_clear := 0]
+
+
+eoe_amb_data_red_calls <- eoe_amb_data_red[, .(yearmonth, lsoa, outcome_of_incident, call_to_scene_any, call_to_scene_conveying, scene_to_dest, call_to_dest, dest_to_clear)]
+
+save(eoe_amb_data_red_calls, file = "data/amb_red_calls_eoe_data.Rda", compress = "bzip2")
+save(eoe_amb_data_green_calls, file = "data/amb_green_calls_eoe_data.Rda", compress = "bzip2")
+
+# **************************************# **************************************# **************************************# **************************************# **************
+# Quite a lot of data quality issues - need to check what calls we can use - poor coverage < April 2008
+eoe_amb_data_red_calls[, .(b = mean(call_to_scene_any, na.rm = TRUE), n = sum(!is.na(call_to_scene_any)), x = sum(!is.na(call_to_scene_any)) / length(call_to_scene_any) * 100), by = yearmonth]
+
+# **************************************# **************************************# **************************************# **************************************# **************
+
+
+
+# SWAS --------------------------------------------------------------------
+
+# PROBLEM: Urgency levels only attached since Oct/Nov 2011
+
+swas_amb_data <- fread("data-raw/Ambulance service data/SWAS/160823 closED.csv", sep = ",", header = FALSE, colClasses = "character", na.strings = "NULL")
+
+# Remove the byte order mark from start of file - microsoft, huh.
+swas_amb_data[1, V1 := sub("ï»¿", "", swas_amb_data[1, V1], fixed = TRUE)]
+
+# Standardise field names
+field_names <- c("anonymous_id", "call_source", "call_type",
+  "age", "sex", "within_service_area", "postcode_district", "lsoa",
+  "time_at_switchboard", "time_call_answered", "time_chief_complaint",
+  "time_first_vehicle_assigned",
+  "unknown", "urgency_level", "dispatch_code", "time_first_resource_on_scene",
+  "time_conveying_resource_on_scene", "time_at_destination", "time_clear",
+  "first_resource_type", "conveying_resource_type", "destination_conveyed",
+  "destination_ward", "outcome_of_incident", "dead_on_scene", "swas_division")
+setnames(swas_amb_data, field_names)
+
+# Create month of call field
+swas_amb_data[, yearmonth := as.Date(lubridate::fast_strptime(paste0(substr(time_at_switchboard, 1, 7), "-01"), format = "%Y-%m-%d", lt = FALSE))]
+
+swas_amb_data_red <- swas_amb_data[substr(urgency_level, 1, 3) == "Red" & call_type == "Emergency", .(yearmonth, lsoa, outcome_of_incident, time_at_switchboard, time_call_answered, time_first_resource_on_scene, time_conveying_resource_on_scene, time_at_destination, time_clear)]
+swas_amb_data_green_calls <- swas_amb_data[substr(urgency_level, 1, 3) != "Red" & call_type == "Emergency", .(yearmonth, lsoa, outcome_of_incident)]
+
+swas_amb_data_red[, ':=' (time_at_switchboard = convertTimes(time_at_switchboard),
+  time_call_answered = convertTimes(time_call_answered),
+  time_first_resource_on_scene = convertTimes(time_first_resource_on_scene),
+  time_conveying_resource_on_scene = convertTimes(time_conveying_resource_on_scene),
+  time_at_destination = convertTimes(time_at_destination),
+  time_clear = convertTimes(time_clear))]
+
+swas_amb_data_red <- swas_amb_data_red[!is.na(time_first_resource_on_scene)]
+
+swas_amb_data_red[time_call_answered < time_at_switchboard, time_call_answered := adjustDST(time_at_switchboard, time_call_answered, TRUE)]
+swas_amb_data_red[time_first_resource_on_scene < time_call_answered, time_first_resource_on_scene := adjustDST(time_call_answered, time_first_resource_on_scene, TRUE)]
+swas_amb_data_red[time_conveying_resource_on_scene < time_call_answered, time_conveying_resource_on_scene := adjustDST(time_call_answered, time_conveying_resource_on_scene, TRUE)]
+swas_amb_data_red[time_at_destination < time_conveying_resource_on_scene, time_at_destination := adjustDST(time_conveying_resource_on_scene, time_at_destination, TRUE)]
+swas_amb_data_red[time_clear < time_at_destination, time_clear := adjustDST(time_at_destination, time_clear, TRUE)]
+
+swas_amb_data_red[, ':=' (call_to_scene_any = as.integer(time_first_resource_on_scene - time_call_answered),
+  call_to_scene_conveying = as.integer(time_conveying_resource_on_scene - time_call_answered),
+  scene_to_dest = as.integer(time_at_destination - time_conveying_resource_on_scene),
+  call_to_dest = as.integer(time_at_destination - time_call_answered),
+  dest_to_clear = as.integer(time_clear - time_at_destination))]
+
+swas_amb_data_red[call_to_scene_any < 0, call_to_scene_any := 0]
+swas_amb_data_red[call_to_scene_conveying < 0, call_to_scene_conveying := 0]
+swas_amb_data_red[scene_to_dest < 0, scene_to_dest := 0]
+swas_amb_data_red[call_to_dest < 0, call_to_dest := 0]
+swas_amb_data_red[dest_to_clear < 0, dest_to_clear := 0]
+
+
+swas_amb_data_red_calls <- swas_amb_data_red[, .(yearmonth, lsoa, outcome_of_incident, call_to_scene_any, call_to_scene_conveying, scene_to_dest, call_to_dest, dest_to_clear)]
+
+
+swas_amb_data_red_calls[, .(b = mean(call_to_scene_any, na.rm = TRUE), n = sum(!is.na(call_to_scene_any)), x = sum(!is.na(call_to_scene_any)) / length(call_to_scene_any) * 100), by = yearmonth]
+
+bla <- swas_amb_data[, .N, by = .(yearmonth)]
