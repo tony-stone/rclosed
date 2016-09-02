@@ -166,3 +166,53 @@ save_length_of_stay_measure <- function() {
   save(length_of_stay_measure, file = createMeasureFilename("length of stay"), compress = "bzip2")
   save(length_of_stay_site_measure, file = createMeasureFilename("length of stay", "site"), compress = "bzip2")
 }
+
+
+save_hospital_transfers_measure <- function() {
+
+  db_conn <- connect2DB()
+
+  tbl_name <- "cips_by_ht_site_lsoa_month"
+  add_logic <- "cips_finished = TRUE AND nights_admitted < 184"
+  add_fields <- "any_transfer"
+
+  # Prepare query string to create temp table
+  sql_create_tbl <- getSqlUpdateQuery("apc", tbl_name, add_logic, add_fields)
+
+  # Takes ~30s
+  resource <- RJDBC::dbSendUpdate(db_conn, sql_create_tbl)
+
+  # retrieve data
+  cips_by_hospital_transfer_site_lsoa_month <- getDataFromTempTable(db_conn, tbl_name, "apc", add_fields)
+
+  # Disconnect from DB
+  DBI::dbDisconnect(db_conn)
+  db_conn <- NULL
+
+  # collapse to patients by (lsoa, month, any_hospital_transfer)
+  cips_by_hospital_transfer_lsoa_month <- cips_by_hospital_transfer_site_lsoa_month[, .(value = sum(value)), by = .(lsoa, yearmonth, any_transfer)]
+
+  # collapse to patients by (lsoa, month)
+  cips_by_lsoa_month <- cips_by_hospital_transfer_lsoa_month[, .(value = sum(value)), by = .(lsoa, yearmonth)]
+  cips_by_lsoa_month[, sub_measure := "all stays"]
+
+  # collapse to patients by (lsoa, month, any_hospital_transfer)
+  ht_cips_by_lsoa_month <- cips_by_hospital_transfer_lsoa_month[any_transfer == "t", .(value = sum(value)), by = .(lsoa, yearmonth)]
+  ht_cips_by_lsoa_month[, sub_measure := "stays with transfer"]
+
+  # combine "any hospital transfer"- and all-  admissions by (lsoa, yearmonth)
+  hospital_transfer_cips_measure <- rbind(cips_by_lsoa_month, ht_cips_by_lsoa_month)
+  hospital_transfer_cips_measure[, measure := "hospital transfers"]
+
+  # format
+  hospital_transfer_cips_measure <- fillDataPoints(hospital_transfer_cips_measure)
+  hospital_transfer_cips_site_measure <- collapseLsoas2Sites(hospital_transfer_cips_measure)
+
+  # Create proportion measure
+  hospital_transfers_measure <- addFractionSubmeasure(hospital_transfer_cips_measure, "all stays", "stays with transfer", "fraction with transfer")
+  hospital_transfers_site_measure <- addFractionSubmeasure(hospital_transfer_cips_site_measure, "all stays", "stays with transfer", "fraction with transfer")
+
+  # save
+  save(hospital_transfers_measure, file = createMeasureFilename("hospital transfers"), compress = "bzip2")
+  save(hospital_transfers_site_measure, file = createMeasureFilename("hospital transfers", "site"), compress = "bzip2")
+}

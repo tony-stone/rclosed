@@ -13,6 +13,7 @@ genClosedMeasures <- function() {
   # APC based measures, 10.5mins
   save_emergency_admissions_measure()
   save_critical_care_stays_measure()
+  save_hospital_transfers_measure()
   save_length_of_stay_measure()
 
   # Deaths based measures, ??mins

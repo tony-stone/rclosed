@@ -230,7 +230,7 @@ save_relevant_admitted_care_cips <- function() {
   # Takes about 2mins
   resource <- RJDBC::dbSendUpdate(db_conn, sql_create_linktable_query)
 
-  # Create data data
+  # Create data table
   sql_create_data_table_query <- paste("CREATE TABLE", tbl_name, "AS",
     "SELECT relevant_apc_episodes.*, cipss.cips, cipss.cips_spell, cipss.cips_episode , cipss.spell, cipss.episode",
     "FROM relevant_apc_episodes INNER JOIN temp_relevant_apc_cips_linktable AS cipss ON",
@@ -238,6 +238,12 @@ save_relevant_admitted_care_cips <- function() {
 
   # Takes about 2mins
   resource <- RJDBC::dbSendUpdate(db_conn, sql_create_data_table_query)
+
+  # Create index on table
+  sql_create_index_query <- paste("CREATE INDEX ON", tbl_name, "(encrypted_hesid, cips);")
+
+  # Takes about 6.5mins
+  resource <- RJDBC::dbSendUpdate(db_conn, sql_create_index_query)
 
   # Get size of table - ~10M
   nrows <- DBI::dbGetQuery(db_conn, paste0("SELECT COUNT(*) FROM ", tbl_name, ";"))[1, 1]
@@ -268,12 +274,13 @@ save_relevant_cips_data <- function(lsoas) {
     "CASE WHEN discharged.last_disdate >= cipss.cips_end THEN TRUE ELSE FALSE END AS cips_finished,",
     "CASE WHEN died.date_of_death_first IS NOT NULL THEN TRUE ELSE FALSE END AS died,",
     "(cipss.cips_end - cipss.cips_start) AS nights_admitted,",
-    "CASE WHEN admiepi.admimeth = '21' THEN TRUE ELSE FALSE END AS emergency_admission",
+    "CASE WHEN admiepi.admimeth = '21' THEN TRUE ELSE FALSE END AS emergency_admission,",
+    "CASE WHEN notadmiepi.transferedin = '1' THEN TRUE ELSE FALSE END AS any_transfer",
     "FROM",
     "(",
     "SELECT encrypted_hesid, cips, LEAST(MIN(admidate), MIN(epistart)) AS cips_start, MAX(epiend) AS cips_end,",
     "MAX(CASE WHEN tretspef = '192' THEN 1 ELSE 0 END) AS any_critical_care,",
-    "SUM(CASE WHEN sex = '1' THEN 1 ELSE 0 END) AS male_episodes, SUM(CASE WHEN sex IS NOT DISTINCT FROM '2' THEN 1 ELSE 0 END) AS female_episodes,",
+    "SUM(CASE WHEN sex = '1' THEN 1 ELSE 0 END) AS male_episodes, SUM(CASE WHEN sex = '2' THEN 1 ELSE 0 END) AS female_episodes,",
     "COUNT(*) AS total_episodes,",
     "MIN(startage) AS cips_youngestage, MAX(endage) AS cips_oldestage",
     "FROM relevant_apc_cips_episode_data GROUP BY encrypted_hesid, cips",
@@ -285,13 +292,14 @@ save_relevant_cips_data <- function(lsoas) {
     "(SELECT encrypted_hesid, cips, MIN(disdate) AS date_of_death_first, MAX(disdate) AS date_of_death_last FROM relevant_apc_cips_episode_data WHERE dismeth = '4' OR disdest = '79' GROUP BY encrypted_hesid, cips) AS died",
     "ON (cipss.encrypted_hesid = died.encrypted_hesid AND cipss.cips = died.cips)",
     "LEFT JOIN",
-    "(SELECT encrypted_hesid, cips, diag_01, diag_02, cause, startage, admimeth, lsoa01, procode, cips_episode FROM relevant_apc_cips_episode_data) AS admiepi",
-    "ON (cipss.encrypted_hesid = admiepi.encrypted_hesid AND cipss.cips = admiepi.cips AND admiepi.cips_episode = 1)",
+    "(SELECT encrypted_hesid, cips, diag_01, diag_02, cause, startage, admimeth, lsoa01, procode, cips_episode FROM relevant_apc_cips_episode_data WHERE cips_episode = 1) AS admiepi",
+    "ON (cipss.encrypted_hesid = admiepi.encrypted_hesid AND cipss.cips = admiepi.cips)",
     "LEFT JOIN",
-    "(SELECT epis.encrypted_hesid, epis.cips, epis.endage FROM relevant_apc_cips_episode_data AS epis INNER JOIN",
-    "(SELECT encrypted_hesid, cips, MAX(cips_episode) AS max_cips_episode FROM relevant_apc_cips_episode_data GROUP BY encrypted_hesid, cips) AS maxepi",
-    "ON (epis.encrypted_hesid = maxepi.encrypted_hesid AND epis.cips = maxepi.cips AND epis.cips_episode = maxepi.max_cips_episode)) AS lastepi",
-    "ON (cipss.encrypted_hesid = lastepi.encrypted_hesid AND cipss.cips = lastepi.cips)",
+    "(SELECT encrypted_hesid, cips, MAX(CASE WHEN admisorc = '51' THEN 1 ELSE 0 END) AS transferedin FROM relevant_apc_cips_episode_data WHERE cips_episode != 1 GROUP BY encrypted_hesid, cips) AS notadmiepi",
+    "ON (cipss.encrypted_hesid = notadmiepi.encrypted_hesid AND cipss.cips = notadmiepi.cips)",
+    "LEFT JOIN",
+    "(SELECT encrypted_hesid, cips, cips_episode, endage FROM relevant_apc_cips_episode_data) AS lastepi",
+    "ON (cipss.encrypted_hesid = lastepi.encrypted_hesid AND cipss.cips = lastepi.cips AND cipss.total_episodes = lastepi.cips_episode)",
     "WHERE cipss.cips_start > to_date('2007-03-31', 'YYYY-MM-DD') AND admiepi.lsoa01 IN (", paste0("'", lsoas, "'", collapse = ", "), ");")
 
   # Takes about 6mins
@@ -326,8 +334,8 @@ prepare_relevant_admitted_care <- function(lsoas) {
 # lsoas <- unique(catchment_area_set_final$lsoa)
 # rm(catchment_area_set_final)
 # gc()
-# prepare_relevant_admitted_care(lsoas)
-#
+# save_relevant_cips_data(lsoas)
+
 # # bla1 <- DBI::dbGetQuery(db_conn, paste("SELECT COUNT(*) AS total_cips, SUM(CASE WHEN died = TRUE THEN 1 ELSE 0 END) AS deaths, SUM(CASE WHEN cips_finished = TRUE THEN 1 ELSE 0 END) AS finished FROM relevant_apc_cips_data WHERE emergency_admission = TRUE;"))
 # #
 # # bla2 <- DBI::dbGetQuery(db_conn, paste("SELECT SUM(CASE WHEN male_episodes > 0 THEN 1 ELSE 0 END) AS males, SUM(CASE WHEN female_episodes > 0 THEN 1 ELSE 0 END) AS females, SUM(CASE WHEN female_episodes = 0 AND male_episodes = 0 THEN 1 ELSE 0 END) AS unknowns FROM relevant_apc_cips_data WHERE emergency_admission = TRUE;"))
