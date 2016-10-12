@@ -7,7 +7,8 @@ createMeasureFilename <- function(m_name, geo_level = "lsoa") {
 
 fillDataPoints <- function(data, count_data = TRUE, lsoa_level = TRUE) {
 
-  # This function does not work for measures with different sub_measures so ensure we are only working with one measure
+  # This function does not work for datasets with more than one measure (as they would, potentially, have different sub_measures)
+  #     so ensure we are only working with one measure
   stopifnot(length(unique(data$measure)) == 1)
 
   # Get catchment areas data
