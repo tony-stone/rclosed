@@ -257,7 +257,10 @@ save_relevant_admitted_care_cips <- function() {
 
 
 
-save_relevant_cips_data <- function(lsoas) {
+save_relevant_cips_data <- function() {
+
+  load("data/catchment area set final.Rda")
+  lsoas <- unique(catchment_area_set_final$lsoa)
 
   db_conn <- connect2DB()
 
@@ -274,7 +277,7 @@ save_relevant_cips_data <- function(lsoas) {
     "CASE WHEN discharged.last_disdate >= cipss.cips_end THEN TRUE ELSE FALSE END AS cips_finished,",
     "CASE WHEN died.date_of_death_first IS NOT NULL THEN TRUE ELSE FALSE END AS died,",
     "(cipss.cips_end - cipss.cips_start) AS nights_admitted,",
-    "CASE WHEN admiepi.admimeth = '21' THEN TRUE ELSE FALSE END AS emergency_admission,",
+    "CASE WHEN admiepi.admimeth IN ('21', '2A', '2B', '2C', '2D', '28') THEN TRUE ELSE FALSE END AS emergency_admission,",
     "CASE WHEN notadmiepi.transferedin = '1' THEN TRUE ELSE FALSE END AS any_transfer",
     "FROM",
     "(",
@@ -302,8 +305,14 @@ save_relevant_cips_data <- function(lsoas) {
     "ON (cipss.encrypted_hesid = lastepi.encrypted_hesid AND cipss.cips = lastepi.cips AND cipss.total_episodes = lastepi.cips_episode)",
     "WHERE cipss.cips_start > to_date('2007-03-31', 'YYYY-MM-DD') AND admiepi.lsoa01 IN (", paste0("'", lsoas, "'", collapse = ", "), ");")
 
-  # Takes about 6mins
+  # Takes hours!!
   resource <- RJDBC::dbSendUpdate(db_conn, sql_query_make_table)
+
+  # Create indexes on table - <2mins
+  sql_create_index_query <- paste("CREATE INDEX ON", tbl_name, "(emergency_admission);")
+  resource <- RJDBC::dbSendUpdate(db_conn, sql_create_index_query)
+  sql_create_index_query <- paste("CREATE INDEX ON", tbl_name, "(procode, lsoa01);")
+  resource <- RJDBC::dbSendUpdate(db_conn, sql_create_index_query)
 
   # Get size of table - ~9M
   nrows <- DBI::dbGetQuery(db_conn, paste0("SELECT COUNT(*) FROM ", tbl_name, ";"))[1, 1]
@@ -317,7 +326,7 @@ save_relevant_cips_data <- function(lsoas) {
 
 
 # Creates new DB table to store only relevant HES APC records based on supplied LSOAs
-prepare_relevant_admitted_care <- function(lsoas) {
+prepare_relevant_admitted_care <- function() {
 
   n_episodes <- save_relevant_admitted_care_episodes()
 
@@ -325,50 +334,8 @@ prepare_relevant_admitted_care <- function(lsoas) {
 
   n_cips <- save_relevant_admitted_care_cips()
 
-  cips_data_rows <- save_relevant_cips_data(lsoas)
+  cips_data_rows <- save_relevant_cips_data()
 }
 
-
-# library(data.table)
-# load("data/catchment area set final.Rda")
-# lsoas <- unique(catchment_area_set_final$lsoa)
-# rm(catchment_area_set_final)
-# gc()
-# save_relevant_cips_data(lsoas)
-
-# # bla1 <- DBI::dbGetQuery(db_conn, paste("SELECT COUNT(*) AS total_cips, SUM(CASE WHEN died = TRUE THEN 1 ELSE 0 END) AS deaths, SUM(CASE WHEN cips_finished = TRUE THEN 1 ELSE 0 END) AS finished FROM relevant_apc_cips_data WHERE emergency_admission = TRUE;"))
-# #
-# # bla2 <- DBI::dbGetQuery(db_conn, paste("SELECT SUM(CASE WHEN male_episodes > 0 THEN 1 ELSE 0 END) AS males, SUM(CASE WHEN female_episodes > 0 THEN 1 ELSE 0 END) AS females, SUM(CASE WHEN female_episodes = 0 AND male_episodes = 0 THEN 1 ELSE 0 END) AS unknowns FROM relevant_apc_cips_data WHERE emergency_admission = TRUE;"))
-# #
-# # bla3 <- DBI::dbGetQuery(db_conn, paste("SELECT admimeth, COUNT(*) FROM relevant_apc_cips_data GROUP BY admimeth ORDER BY admimeth;"))
-# #
-# # bla4 <- DBI::dbGetQuery(db_conn, paste("SELECT nights_admitted FROM relevant_apc_cips_data WHERE cips_finished = TRUE AND emergency_admission = TRUE AND nights_admitted < 213;"))
-# #
-# # bla5 <- DBI::dbGetQuery(db_conn, paste("SELECT DISTINCT lsoa01 FROM relevant_apc_cips_data WHERE cips_finished = TRUE AND emergency_admission = TRUE;"))
-# #
-# # bla6 <- DBI::dbGetQuery(db_conn, paste("SELECT encrypted_hesid FROM relevant_apc_cips_data WHERE cips_finished = TRUE AND emergency_admission = TRUE AND last_disdate <> date_of_death_last;"))
-# #
-# # zombies <- DBI::dbGetQuery(db_conn, paste("SELECT * FROM relevant_apc_episodes WHERE encrypted_hesid IN (", paste0("'", bla6$encrypted_hesid, "'", collapse = ", "), ");"))
-# #
-# # Strange finishes
-# stange_finishers <- DBI::dbGetQuery(db_conn, paste("SELECT dis.dis_diff, COUNT(*) FROM (SELECT (cips_end - last_disdate) AS dis_diff FROM relevant_apc_cips_data) AS dis GROUP BY dis.dis_diff ORDER BY dis.dis_diff ASC NULLS FIRST;"))
-# sum(stange_finishers$count[!is.na(stange_finishers$dis_diff) & stange_finishers$dis_diff < 0])
-#
-# # Emergency and avoidable admissions
-# measures1 <- DBI::dbGetQuery(db_conn, paste("SELECT to_char(date_trunc('month', cips_start), 'YYYY-MM-DD') AS yearmonth, lsoa01 AS lsoa, startage, diag_01, diag_02, cause, COUNT(*) AS values FROM relevant_apc_cips_data WHERE emergency_admission = TRUE GROUP BY yearmonth, lsoa, startage, diag_01, diag_02, cause;"))
-#
-# # condition severity
-# measures2 <- DBI::dbGetQuery(db_conn, paste("SELECT to_char(date_trunc('month', cips_start), 'YYYY-MM-DD') AS yearmonth, lsoa01 AS lsoa, AVG(CAST(nights_admitted AS DOUBLE PRECISION)) AS mean_length_of_stay, COUNT(*) as num_admissions, SUM(any_critical_care) AS num_received_critical_care FROM relevant_apc_cips_data WHERE cips_finished = TRUE AND emergency_admission = TRUE AND nights_admitted < 213 GROUP BY yearmonth, lsoa;"))
-#
-# # mortality
-# measures3 <- DBI::dbGetQuery(db_conn, paste("SELECT to_char(date_trunc('month', cips_start), 'YYYY-MM-DD') AS yearmonth, to_char(date_trunc('month', date_of_death_last), 'YYYY-MM-DD') AS yearmonth_death, lsoa01 AS lsoa, startage, endage, diag_01, diag_02, cause FROM relevant_apc_cips_data WHERE cips_finished = TRUE AND emergency_admission = TRUE AND nights_admitted < 213 AND died = TRUE AND date_of_death_last = last_disdate;"))
-#
-# # Case fatality
-# measures4 <- DBI::dbGetQuery(db_conn, paste("SELECT to_char(date_trunc('month', cips_start), 'YYYY-MM-DD') AS yearmonth, lsoa01 AS lsoa, startage, diag_01, diag_02, cause, COUNT(*) AS cases, SUM(CASE WHEN died = TRUE AND date_of_death_last = last_disdate AND nights_admitted < 3 THEN 1 ELSE 0) AS fatalities FROM relevant_apc_cips_data WHERE emergency_admission = TRUE GROUP BY yearmonth, lsoa, startage, diag_01, diag_02, cause;"))
-#
-# # ggplot2::ggplot(bla4, ggplot2::aes(nights_admitted)) +
-# #   ggplot2::ggtitle("Histogram of nights admitted for patients admitted from A&E") +
-# #   ggplot2::geom_histogram(binwidth = 1) +
-# #   ggplot2::scale_y_continuous(labels = scales::comma, limits = c(0, NA), expand = c(0.02, 0))
 
 
