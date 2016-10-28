@@ -1,4 +1,4 @@
-# All this needs changing to a single final dataset per service
+# All in all, this takes ~2hrs
 
 library(data.table)
 library(readxl)
@@ -86,7 +86,6 @@ adjustDST <- function(t1, t2, t2_date_known = FALSE) {
   return(t2)
 }
 
-
 # EMAS --------------------------------------------------------------------
 
 emas_amb_data <- fread("data-raw/Ambulance service data/EMAS/ClosED.csv", sep = ",", header = TRUE, colClasses = "character", na.strings = "NULL")
@@ -129,11 +128,11 @@ emas_amb_data_red[, ':=' (call_to_scene_any = as.integer(time_first_resource_on_
   call_to_dest = as.integer(time_at_destination - time_call_answered),
   dest_to_clear = as.integer(time_clear - time_at_destination))]
 
-emas_amb_data_red[call_to_scene_any < 0, call_to_scene_any := 0]
-emas_amb_data_red[call_to_scene_conveying < 0, call_to_scene_conveying := 0]
-emas_amb_data_red[scene_to_dest < 0, scene_to_dest := 0]
-emas_amb_data_red[call_to_dest < 0, call_to_dest := 0]
-emas_amb_data_red[dest_to_clear < 0, dest_to_clear := 0]
+emas_amb_data_red[call_to_scene_any < 0, call_to_scene_any := NA]
+emas_amb_data_red[call_to_scene_conveying < 0, call_to_scene_conveying := NA]
+emas_amb_data_red[scene_to_dest < 0, scene_to_dest := NA]
+emas_amb_data_red[call_to_dest < 0, call_to_dest := NA]
+emas_amb_data_red[dest_to_clear < 0, dest_to_clear := NA]
 
 
 emas_amb_data_red_calls <- emas_amb_data_red[, .(yearmonth, lsoa, outcome_of_incident, call_to_scene_any, call_to_scene_conveying, scene_to_dest, call_to_dest, dest_to_clear)]
@@ -291,11 +290,11 @@ eoe_amb_data_red[, ':=' (call_to_scene_any = as.integer(time_first_resource_on_s
   call_to_dest = as.integer(time_at_destination - time_call_answered),
   dest_to_clear = as.integer(time_clear - time_at_destination))]
 
-eoe_amb_data_red[call_to_scene_any < 0, call_to_scene_any := 0]
-eoe_amb_data_red[call_to_scene_conveying < 0, call_to_scene_conveying := 0]
-eoe_amb_data_red[scene_to_dest < 0, scene_to_dest := 0]
-eoe_amb_data_red[call_to_dest < 0, call_to_dest := 0]
-eoe_amb_data_red[dest_to_clear < 0, dest_to_clear := 0]
+eoe_amb_data_red[call_to_scene_any < 0, call_to_scene_any := NA]
+eoe_amb_data_red[call_to_scene_conveying < 0, call_to_scene_conveying := NA]
+eoe_amb_data_red[scene_to_dest < 0, scene_to_dest := NA]
+eoe_amb_data_red[call_to_dest < 0, call_to_dest := NA]
+eoe_amb_data_red[dest_to_clear < 0, dest_to_clear := NA]
 
 
 eoe_amb_data_red_calls <- eoe_amb_data_red[, .(yearmonth, lsoa, outcome_of_incident, call_to_scene_any, call_to_scene_conveying, scene_to_dest, call_to_dest, dest_to_clear)]
@@ -332,6 +331,7 @@ neas_amb_data <- rbindlist(neas_amb_data_list)
 
 rm(neas_amb_data_list)
 gc()
+
 
 # Strip trailing spaces of all but last variable (which was the only non-fixed width variable)
 neas_amb_data[, paste0("V", 1:25) := list( sub("\\s+$", "", V1), sub("\\s+$", "", V2), sub("\\s+$", "", V3), sub("\\s+$", "", V4),
@@ -386,11 +386,11 @@ neas_amb_data_red[, ':=' (call_to_scene_any = as.integer(time_first_resource_on_
   call_to_dest = as.integer(time_at_destination - time_call_answered),
   dest_to_clear = as.integer(time_clear - time_at_destination))]
 
-neas_amb_data_red[call_to_scene_any < 0, call_to_scene_any := 0]
-neas_amb_data_red[call_to_scene_conveying < 0, call_to_scene_conveying := 0]
-neas_amb_data_red[scene_to_dest < 0, scene_to_dest := 0]
-neas_amb_data_red[call_to_dest < 0, call_to_dest := 0]
-neas_amb_data_red[dest_to_clear < 0, dest_to_clear := 0]
+neas_amb_data_red[call_to_scene_any < 0, call_to_scene_any := NA]
+neas_amb_data_red[call_to_scene_conveying < 0, call_to_scene_conveying := NA]
+neas_amb_data_red[scene_to_dest < 0, scene_to_dest := NA]
+neas_amb_data_red[call_to_dest < 0, call_to_dest := NA]
+neas_amb_data_red[dest_to_clear < 0, dest_to_clear := NA]
 
 neas_amb_data_red_calls <- neas_amb_data_red[, .(yearmonth, lsoa, outcome_of_incident, call_to_scene_any, call_to_scene_conveying, scene_to_dest, call_to_dest, dest_to_clear)]
 
@@ -425,6 +425,19 @@ setnames(nwas_amb_data, field_names)
 
 nwas_amb_data[, outcome_of_incident_QA := NULL]
 
+# remove nwas list
+rm(nwas_amb_data_list)
+gc()
+
+# load and include previously excluded NWAS lsoa data
+nwas_lsoas <- fread("data-raw/Ambulance service data/NWAS/LSOA_Matching.csv", sep = ",", header = TRUE, stringsAsFactors = FALSE, colClasses = "character")
+setnames(nwas_lsoas, c("anonymous_id", "excluded_lsoa"))
+
+nwas_amb_data <- merge(nwas_amb_data, nwas_lsoas, by = "anonymous_id", all.x = TRUE)
+
+nwas_amb_data[is.na(lsoa) & !is.na(excluded_lsoa), lsoa := excluded_lsoa]
+nwas_amb_data[, excluded_lsoa := NULL]
+
 # Change date field format
 nwas_amb_data[, yearmonth := as.Date(lubridate::fast_strptime(paste0("01-", match(substr(date_of_call, 4, 6), month.abb), "-", substr(date_of_call, 8, 11)), format = "%d-%m-%Y", lt = FALSE))]
 
@@ -452,16 +465,17 @@ nwas_amb_data_red[, ':=' (call_to_scene_any = as.integer(time_first_resource_on_
   call_to_dest = as.integer(time_at_destination - time_call_answered),
   dest_to_clear = as.integer(time_clear - time_at_destination))]
 
-nwas_amb_data_red[call_to_scene_any < 0, call_to_scene_any := 0]
-nwas_amb_data_red[call_to_scene_conveying < 0, call_to_scene_conveying := 0]
-nwas_amb_data_red[scene_to_dest < 0, scene_to_dest := 0]
-nwas_amb_data_red[call_to_dest < 0, call_to_dest := 0]
-nwas_amb_data_red[dest_to_clear < 0, dest_to_clear := 0]
+nwas_amb_data_red[call_to_scene_any < 0, call_to_scene_any := NA]
+nwas_amb_data_red[call_to_scene_conveying < 0, call_to_scene_conveying := NA]
+nwas_amb_data_red[scene_to_dest < 0, scene_to_dest := NA]
+nwas_amb_data_red[call_to_dest < 0, call_to_dest := NA]
+nwas_amb_data_red[dest_to_clear < 0, dest_to_clear := NA]
 
 
 nwas_amb_data_red_calls <- nwas_amb_data_red[, .(yearmonth, lsoa, outcome_of_incident, call_to_scene_any, call_to_scene_conveying, scene_to_dest, call_to_dest, dest_to_clear)]
 
-rm(nwas_amb_data, nwas_amb_data_red)
+rm(nwas_lsoas, nwas_amb_data, nwas_amb_data_red)
+gc()
 
 
 
@@ -546,11 +560,11 @@ scas_amb_data_red[, ':=' (call_to_scene_any = as.integer(time_first_resource_on_
   call_to_dest = as.integer(time_at_destination - time_call_answered),
   dest_to_clear = as.integer(time_clear - time_at_destination))]
 
-scas_amb_data_red[call_to_scene_any < 0, call_to_scene_any := 0]
-scas_amb_data_red[call_to_scene_conveying < 0, call_to_scene_conveying := 0]
-scas_amb_data_red[scene_to_dest < 0, scene_to_dest := 0]
-scas_amb_data_red[call_to_dest < 0, call_to_dest := 0]
-scas_amb_data_red[dest_to_clear < 0, dest_to_clear := 0]
+scas_amb_data_red[call_to_scene_any < 0, call_to_scene_any := NA]
+scas_amb_data_red[call_to_scene_conveying < 0, call_to_scene_conveying := NA]
+scas_amb_data_red[scene_to_dest < 0, scene_to_dest := NA]
+scas_amb_data_red[call_to_dest < 0, call_to_dest := NA]
+scas_amb_data_red[dest_to_clear < 0, dest_to_clear := NA]
 
 
 scas_amb_data_red_calls <- scas_amb_data_red[, .(yearmonth, lsoa, outcome_of_incident, call_to_scene_any, call_to_scene_conveying, scene_to_dest, call_to_dest, dest_to_clear)]
@@ -602,11 +616,11 @@ swas_amb_data_red[, ':=' (call_to_scene_any = as.integer(time_first_resource_on_
   call_to_dest = as.integer(time_at_destination - time_call_answered),
   dest_to_clear = as.integer(time_clear - time_at_destination))]
 
-swas_amb_data_red[call_to_scene_any < 0, call_to_scene_any := 0]
-swas_amb_data_red[call_to_scene_conveying < 0, call_to_scene_conveying := 0]
-swas_amb_data_red[scene_to_dest < 0, scene_to_dest := 0]
-swas_amb_data_red[call_to_dest < 0, call_to_dest := 0]
-swas_amb_data_red[dest_to_clear < 0, dest_to_clear := 0]
+swas_amb_data_red[call_to_scene_any < 0, call_to_scene_any := NA]
+swas_amb_data_red[call_to_scene_conveying < 0, call_to_scene_conveying := NA]
+swas_amb_data_red[scene_to_dest < 0, scene_to_dest := NA]
+swas_amb_data_red[call_to_dest < 0, call_to_dest := NA]
+swas_amb_data_red[dest_to_clear < 0, dest_to_clear := NA]
 
 
 swas_amb_data_red_calls <- swas_amb_data_red[, .(yearmonth, lsoa, outcome_of_incident, call_to_scene_any, call_to_scene_conveying, scene_to_dest, call_to_dest, dest_to_clear)]
@@ -678,11 +692,11 @@ wmas_amb_data_red[, ':=' (call_to_scene_any = as.integer(time_first_resource_on_
   call_to_dest = as.integer(time_at_destination - time_call_answered),
   dest_to_clear = as.integer(time_clear - time_at_destination))]
 
-wmas_amb_data_red[call_to_scene_any < 0, call_to_scene_any := 0]
-wmas_amb_data_red[call_to_scene_conveying < 0, call_to_scene_conveying := 0]
-wmas_amb_data_red[scene_to_dest < 0, scene_to_dest := 0]
-wmas_amb_data_red[call_to_dest < 0, call_to_dest := 0]
-wmas_amb_data_red[dest_to_clear < 0, dest_to_clear := 0]
+wmas_amb_data_red[call_to_scene_any < 0, call_to_scene_any := NA]
+wmas_amb_data_red[call_to_scene_conveying < 0, call_to_scene_conveying := NA]
+wmas_amb_data_red[scene_to_dest < 0, scene_to_dest := NA]
+wmas_amb_data_red[call_to_dest < 0, call_to_dest := NA]
+wmas_amb_data_red[dest_to_clear < 0, dest_to_clear := NA]
 
 
 wmas_amb_data_red_calls <- wmas_amb_data_red[, .(yearmonth, lsoa, outcome_of_incident, call_to_scene_any, call_to_scene_conveying, scene_to_dest, call_to_dest, dest_to_clear)]
@@ -771,7 +785,7 @@ yas_amb_data[, ':=' (yearmonth = as.Date(lubridate::fast_strptime(paste0(substr(
   call_to_dest = as.integer(NA),
   dest_to_clear = as.integer(NA))]
 
-yas_amb_data[call_to_scene_any < 0, call_to_scene_any := 0]
+yas_amb_data[call_to_scene_any < 0, call_to_scene_any := NA]
 
 yas_amb_data_red_calls <- yas_amb_data[call_type == "Emergency" & urgency_level %in% c('Purple', 'Red', 'Red1', 'Red2', ' 1 R2 Medical'), .(yearmonth, lsoa, outcome_of_incident, call_to_scene_any, call_to_scene_conveying, scene_to_dest, call_to_dest, dest_to_clear)]
 yas_amb_data_green_calls <- yas_amb_data[call_type == "Emergency" & !(urgency_level %in% c('Purple', 'Red', 'Red1', 'Red2', ' 1 R2 Medical')), .(yearmonth, lsoa, outcome_of_incident)]
@@ -820,4 +834,3 @@ rm(amb_data_red_calls_part1, amb_data_red_calls_part2, amb_data_red_calls)
 gc()
 
 file.remove(c("data/amb_data_green_calls_part1.Rda", "data/amb_data_red_calls_part1.Rda", "data/amb_data_red_calls_part2.Rda"))
-
