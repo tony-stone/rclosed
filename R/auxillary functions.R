@@ -213,7 +213,7 @@ classifyAvoidableDeaths <- function(data_in) {
   data[condition == "other" & diag_3char == "S72", condition := "fractured neck of femur"]
 
   # Serious head injuries
-  data[condition == "other" & diag_3char %in% paste0("S0", 0:9), condition := "serious head injury"]
+  data[condition == "other" & diag_3char %in% paste0("S0", 2:9), condition := "serious head injury"]
 
   # format data
   data[, c("diag_01", "diag_02", "cause", "diag_4char", "cause_4char", "diag_3char", "diag_1char", "cause_3char") := NULL]
