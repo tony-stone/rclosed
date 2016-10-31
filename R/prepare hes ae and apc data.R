@@ -65,7 +65,7 @@ save_relevant_admitted_care_episodes <- function() {
   # Takes about 1.5hrs
   resource <- RJDBC::dbSendUpdate(db_conn, sql_query_make_table)
 
-  # Get size of table - ~10M
+  # Get size of table
   stats <- DBI::dbGetQuery(db_conn, paste("SELECT COUNT(*) AS total_records,",
     "SUM(CASE WHEN admidate IS NULL THEN 1 ELSE 0 END) AS invalid_admidate,",
     "SUM(CASE WHEN epistart IS NULL THEN 1 ELSE 0 END) AS invalid_epistart,",
@@ -147,7 +147,7 @@ save_relevant_admitted_care_spells <- function() {
   # Takes about 1.5mins
   resource <- RJDBC::dbSendUpdate(db_conn, sql_create_linktable_query)
 
-  # Get size of table - ~10M
+  # Get size of table
   nrows <- DBI::dbGetQuery(db_conn, paste0("SELECT COUNT(*) FROM ", tbl_name, ";"))[1, 1]
 
   # Disconnect from DB
@@ -245,7 +245,7 @@ save_relevant_admitted_care_cips <- function() {
   # Takes about 6.5mins
   resource <- RJDBC::dbSendUpdate(db_conn, sql_create_index_query)
 
-  # Get size of table - ~10M
+  # Get size of table
   nrows <- DBI::dbGetQuery(db_conn, paste0("SELECT COUNT(*) FROM ", tbl_name, ";"))[1, 1]
 
   # Disconnect from DB
