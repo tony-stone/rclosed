@@ -326,8 +326,8 @@ Requires: Rcpp, plyr, stringr
 
 Package: rgdal
 Source: CRAN
-Version: 1.1-8
-Hash: 83eaba3df0fc39f61e2f3e6f85319895
+Version: 1.1-10
+Hash: e8eb6f9f13d32f7dd1dfb16451e281c6
 Requires: sp
 
 Package: rgeos
