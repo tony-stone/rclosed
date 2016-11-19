@@ -17,6 +17,8 @@ genClosedMeasures <- function() {
   save_length_of_stay_measure()
 
   # Deaths based measures, ??mins
+  link_hes_apc_and_death_data()
+  save_deaths_measure()
   save_case_fatality_measure()
 
   #Ambulance based measures, 4.5mins
