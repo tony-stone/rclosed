@@ -1,6 +1,6 @@
 createMeasureFilename <- function(m_name, geo_level = "lsoa") {
   g_lev <- ifelse(geo_level == "lsoa", "lsoa", "site")
-  return(paste0("data/", m_name, " measure - ", g_lev, " - ", format(Sys.time(), "%Y-%m-%d %H.%M"), ".Rda"))
+  return(paste0("measures/", m_name, " measure - ", g_lev, " - ", format(Sys.time(), "%Y-%m-%d %H.%M"), ".Rda"))
 }
 
 
