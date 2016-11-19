@@ -1,5 +1,3 @@
-
-
 db_conn <- connect2DB()
 
 tbl_name <- "emergency_admissions_by_diagnosis_site_lsoa_month"
@@ -36,32 +34,32 @@ rm(emergency_admissions_by_ucc_site_lsoa_month, emergency_admissions_by_sec_site
 gc()
 
 # avoidable emergency admissions
-emergency_admissions_by_ucc_lsoa_month[, measure := "avoidable emergency admissions"]
-emergency_admissions_by_sec_lsoa_month[, measure := "avoidable emergency admissions"]
+emergency_admissions_by_ucc_lsoa_month[, measure := "UCC emergency admission"]
+emergency_admissions_by_sec_lsoa_month[, measure := "SEC emergency admissions"]
+
 
 # format
-emergency_admissions_by_ucc_lsoa_month <- fillDataPoints(emergency_admissions_by_ucc_lsoa_month)[site_type == "intervention"]
-emergency_admissions_by_sec_lsoa_month <- fillDataPoints(emergency_admissions_by_sec_lsoa_month)[site_type == "intervention"]
+emergency_admissions_by_ucc_lsoa_month <- fillDataPoints(emergency_admissions_by_ucc_lsoa_month)
+emergency_admissions_by_sec_lsoa_month <- fillDataPoints(emergency_admissions_by_sec_lsoa_month)
 
 # Collapse to site level
 emergency_admissions_by_ucc_month <- collapseLsoas2Sites(emergency_admissions_by_ucc_lsoa_month)
 emergency_admissions_by_sec_month <- collapseLsoas2Sites(emergency_admissions_by_sec_lsoa_month)
 
 
-period_label <- c("before", "after")
+period_label <- c("period1_before", "period2_after")
 emergency_admissions_by_ucc_month[, period := period_label[as.integer(relative_month > 24) + 1]]
 emergency_admissions_by_sec_month[, period := period_label[as.integer(relative_month > 24) + 1]]
 
 # Collapse to before/after
 emergency_admissions_by_ucc_period <- emergency_admissions_by_ucc_month[, .(value = sum(value, na.rm = TRUE)), by = .(town, period, sub_measure)]
 emergency_admissions_by_sec_period <- emergency_admissions_by_sec_month[, .(value = sum(value, na.rm = TRUE)), by = .(town, period, sub_measure)]
-emergency_admissions_by_lsoa_period <- emergency_admissions_by_ucc_period[, .(value = sum(value, na.rm = TRUE)), by = .(town, period)][town == "Hartlepool"]
+emergency_admissions_by_period <- emergency_admissions_by_ucc_period[, .(value = sum(value, na.rm = TRUE)), by = .(town, period)]
 
 
 emergency_admissions_by_ucc_period_wide <- dcast(emergency_admissions_by_ucc_period, sub_measure ~ town + period, value.var = "value")
 emergency_admissions_by_sec_period_wide <- dcast(emergency_admissions_by_sec_period, sub_measure ~ town + period, value.var = "value")
 
 write.table(emergency_admissions_by_ucc_period_wide, file = "clipboard", sep = "\t", row.names = FALSE)
-
 write.table(emergency_admissions_by_sec_period_wide, file = "clipboard", sep = "\t", row.names = FALSE)
 
