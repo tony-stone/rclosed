@@ -3,7 +3,7 @@
 save_ambulance_red_calls_measures <- function() {
 
   load("data/site data.Rda")
-  load("D:/Rpackages/rclosed/data/catchment area set final.Rda")
+  load("data/catchment area set final.Rda")
   ambulance_data_valid_lsoas <- merge(site_data[, .(town, ambulance_service = tolower(ambulance_service))], catchment_area_set_final[, .(town, lsoa)], by = "town")
 
   load("data/amb_data_red_calls.Rda")
@@ -105,7 +105,7 @@ calc_ambulance_times_measures <- function(amb_times_data, counts = FALSE, lsoa_l
 save_ambulance_green_calls_measures <- function() {
 
   load("data/site data.Rda")
-  load("D:/Rpackages/rclosed/data/catchment area set final.Rda")
+  load("data/catchment area set final.Rda")
   ambulance_data_valid_lsoas <- merge(site_data[, .(town, ambulance_service = tolower(ambulance_service))], catchment_area_set_final[, .(town, lsoa)], by = "town")
 
   load("data/amb_data_green_calls.Rda")
