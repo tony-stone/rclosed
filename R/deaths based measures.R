@@ -1,10 +1,10 @@
-save_case_fatality_measure <- function(days_to_death_cuts = c(3, 7, 30)) {
+save_case_fatality_measure <- function(days_to_death_cuts = 7) {
 
   load("data/hes apc cips and deaths.Rda")
 
   invisible(
   case_fatality_measure_list <- lapply(days_to_death_cuts, function(days, data){
-    deaths_lsoa <- prepareDeathsMeasure(days, data[death_record == TRUE])
+    deaths_lsoa <- prepareDeathsMeasure("all", data[death_record == TRUE], days)
     cases_lsoa <- prepareCases(days, data[valid_as_case_only == TRUE])[, c("measure", "group", "site_type", "relative_month", "diff_time_to_ed") := NULL]
 
     case_fatality <- merge(deaths_lsoa, cases_lsoa, by = c("lsoa", "yearmonth", "sub_measure", "town"), all = TRUE)
@@ -37,13 +37,15 @@ save_case_fatality_measure <- function(days_to_death_cuts = c(3, 7, 30)) {
 }
 
 
-save_deaths_measure <- function(days_to_death_cuts = c(3, 7, 30)) {
+save_deaths_measure <- function(days_to_death_cuts = 7) {
 
   load("data/hes apc cips and deaths.Rda")
 
   hes_apc_cips_with_deaths <- hes_apc_cips_and_deaths[death_record == TRUE]
 
-  deaths_measures_lsoa <- lapply(days_to_death_cuts, prepareDeathsMeasure, deaths_data = hes_apc_cips_with_deaths)
+  measures <- c("all", "in_cips", "not_in_cips")
+
+  deaths_measures_lsoa <- lapply(measures, prepareDeathsMeasure, deaths_data = hes_apc_cips_with_deaths, days = days_to_death_cuts)
 
   invisible(
     lapply(deaths_measures_lsoa, function(data) {
@@ -63,8 +65,16 @@ save_deaths_measure <- function(days_to_death_cuts = c(3, 7, 30)) {
 }
 
 
-prepareDeathsMeasure <- function(days, deaths_data) {
-  deaths <- copy(deaths_data[died_in_cips == FALSE | (died_in_cips == TRUE & days_to_death_grp <= days)])
+prepareDeathsMeasure <- function(meas, deaths_data, days = 7) {
+  if(meas == "all") {
+    deaths <- copy(deaths_data[died_in_cips == FALSE | (died_in_cips == TRUE & days_to_death_grp <= days)])
+  } else if(meas == "in_cips") {
+    deaths <- copy(deaths_data[(died_in_cips == TRUE & days_to_death_grp <= days)])
+  } else if(meas == "not_in_cips") {
+    deaths <- copy(deaths_data[died_in_cips == FALSE])
+  } else {
+    stop("Measure not specified.")
+  }
 
   deaths[died_in_cips == TRUE, ':=' (lsoa = lsoa_case,
     yearmonth = yearmonth_case)]
@@ -80,7 +90,7 @@ prepareDeathsMeasure <- function(days, deaths_data) {
   deaths_measure_all[, sub_measure := "any sec"]
 
   deaths_measure <- rbind(deaths_measure_by_condition, deaths_measure_all)
-  deaths_measure[, measure := paste0("sec_deaths_", days, "days")]
+  deaths_measure[, measure := paste0("sec_deaths_", meas, "_", days, "days")]
 
   deaths_measure <- fillDataPoints(deaths_measure)
 
@@ -89,6 +99,7 @@ prepareDeathsMeasure <- function(days, deaths_data) {
 
 
 prepareCases <- function(days, cases_data) {
+  # CIPS in which the patient did not die or died >n days after admission
   cases <- copy(cases_data[(died_in_cips == TRUE & days_to_death_grp > days) | is.na(days_to_death_grp)])
 
   setnames(cases, c("lsoa_case", "yearmonth_case", "condition_case"), c("lsoa", "yearmonth", "condition"))
@@ -108,11 +119,11 @@ prepareCases <- function(days, cases_data) {
 }
 
 
-link_hes_apc_and_death_data <- function(days_to_death_cuts = c(3, 7, 30)) {
+link_hes_apc_and_death_data <- function(days_to_death_cuts = 7) {
   db_conn <- connect2DB()
 
   # Prepare query string to create temp table
-  sql_create_tbl <- "CREATE TEMP TABLE individual_cips AS SELECT row_number() OVER () AS row, encrypted_hesid, lsoa01, cips_start, cips_end, diag_01, diag_02, cause, startage, nights_admitted FROM relevant_apc_cips_data WHERE emergency_admission = TRUE AND cips_finished = TRUE AND nights_admitted < 184;"
+  sql_create_tbl <- "CREATE TEMP TABLE individual_cips AS SELECT row_number() OVER () AS row, encrypted_hesid, lsoa01, cips_start, cips_end, diag_01, diag_02, cause, startage, nights_admitted, cips_finished FROM relevant_apc_cips_data WHERE emergency_admission = TRUE AND nights_admitted < 184;"
 
   # Calc data
   resource <- RJDBC::dbSendUpdate(db_conn, sql_create_tbl)
@@ -124,7 +135,7 @@ link_hes_apc_and_death_data <- function(days_to_death_cuts = c(3, 7, 30)) {
   # Set offset and limit var
   offset <- 0L
   limit <- 300000L
-  sql_select <- paste0("SELECT encrypted_hesid, lsoa01, cips_start, cips_end, diag_01, diag_02, cause, startage, nights_admitted FROM individual_cips")
+  sql_select <- paste0("SELECT encrypted_hesid, lsoa01, cips_start, cips_end, diag_01, diag_02, cause, startage, nights_admitted, cips_finished FROM individual_cips")
 
   sql_query_select <- paste0(sql_select, " WHERE row > ", offset, " AND row <= ", offset + limit, ";")
   df_data <- DBI::dbGetQuery(db_conn, sql_query_select)
@@ -193,15 +204,16 @@ link_hes_apc_and_death_data <- function(days_to_death_cuts = c(3, 7, 30)) {
 
   # For those with >1 APC CIPS, rank by: 1) patient; 2) latest finishing CIPS; 3) earliest starting CIPS
   hes_apc_cips_and_deaths[!is.na(cips_start) & !is.na(date_of_death), cips_rank := frankv(hes_apc_cips_and_deaths[!is.na(cips_start) & !is.na(date_of_death)], cols = c("encrypted_hesid", "cips_end", "cips_start"), order = c(1, -1, 1), ties.method = "random")]
-  hes_apc_cips_and_deaths[!is.na(cips_rank), cips_rank_patient := rank(cips_rank, ties.method = "min"), by = encrypted_hesid]
+  hes_apc_cips_and_deaths[!is.na(cips_rank), cips_rank_patient := rank(cips_rank, ties.method = "min"), by = encrypted_hesid] # there should be no ties
   stopifnot(hes_apc_cips_and_deaths[!is.na(cips_rank_patient), .N, by = .(encrypted_hesid, cips_rank_patient)][N > 1, .N] == 0) # there should be no ties
 
   # Mark only the latest finishing, earliest starting CIPS or the single death record (for those with no APC CIPS)
   hes_apc_cips_and_deaths[, death_record := FALSE]
   hes_apc_cips_and_deaths[cips_rank_patient == 1 | (is.na(cips_rank_patient) & !is.na(date_of_death)), death_record := TRUE]
 
-  # Ignoring death records (mark these seperately), only keep CIPS where the patient was admitted for at least 2 nights
-  hes_apc_cips_and_deaths <- hes_apc_cips_and_deaths[death_record == TRUE | (death_record == FALSE & nights_admitted > 1)]
+  # Ignoring death records (mark these seperately), only keep CIPS where the patient was admitted for at least 2 nights and the CIPS has finished
+  # (needed to include unfinished CIPS to this point as a Trust serving the majority of one site failed to properly end a CIPS if the patient died)
+  hes_apc_cips_and_deaths <- hes_apc_cips_and_deaths[death_record == TRUE | (death_record == FALSE & nights_admitted > 1 & cips_finished == "t")]
 
   # classify days to death
   hes_apc_cips_and_deaths[, days_to_death_grp := c(days_to_death_cuts, Inf)[cut(
@@ -212,18 +224,22 @@ link_hes_apc_and_death_data <- function(days_to_death_cuts = c(3, 7, 30)) {
 
   # For CIPS attached to the death record decide if the CIPS would be valid as a "case"
   # i.e. check: admited > 1 night and check the patient had not "already died" (we trust the death record over the HES data))
-  hes_apc_cips_and_deaths[, valid_as_case_only := (!is.na(nights_admitted) & !is.na(days_to_death_grp) & nights_admitted > 1)]
+  hes_apc_cips_and_deaths[, valid_as_case_only := FALSE]
+  hes_apc_cips_and_deaths[!is.na(date_of_death) & cips_start <= date_of_death & nights_admitted > 1, valid_as_case_only := TRUE]
+  hes_apc_cips_and_deaths[is.na(date_of_death) & nights_admitted > 1, valid_as_case_only := TRUE]
 
   # mark CIPS in which the patient dies - not necessarily the death record
   hes_apc_cips_and_deaths[, died_in_cips := (!is.na(cips_end) & !is.na(date_of_death) & !is.na(days_to_death_grp) & cips_end >= date_of_death)]
 
   # remove fields we don't require
-  hes_apc_cips_and_deaths[, c("cips_start",
+  hes_apc_cips_and_deaths[, c("encrypted_hesid",
+    "cips_start",
     "cips_end",
     "cips_rank",
     "cips_rank_patient",
     "date_of_death",
-    "nights_admitted") := NULL]
+    "nights_admitted",
+    "cips_finished") := NULL]
 
   # ensure we have the same number of deaths as we started with
   stopifnot(hes_apc_cips_and_deaths[death_record == TRUE, .N] == ons_deaths[, .N])
