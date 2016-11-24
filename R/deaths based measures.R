@@ -8,28 +8,28 @@ save_case_fatality_measure <- function(days_to_death_cuts = 7) {
     cases_lsoa <- prepareCases(days, data[valid_as_case_only == TRUE])[, c("measure", "group", "site_type", "relative_month", "diff_time_to_ed") := NULL]
 
     case_fatality <- merge(deaths_lsoa, cases_lsoa, by = c("lsoa", "yearmonth", "sub_measure", "town"), all = TRUE)
-    case_fatality_any <- case_fatality[sub_measure != "any sec" & sub_measure != "other", .(value.x = sum(value.x), value.y = sum(value.y)), by = .(lsoa, yearmonth, town, measure, group, site_type, relative_month, diff_time_to_ed)]
-    case_fatality_any[, sub_measure := "any single sec"]
 
-    case_fatality_all <- rbind(case_fatality, case_fatality_any)
-    case_fatality_all[, measure := paste0("sec case fatality ", days, " days")]
+    case_fatality[, measure := paste0("sec case fatality ", days, " days")]
 
-    case_fatality_measure <- copy(case_fatality_all)
+    case_fatality_measure <- copy(case_fatality)
 
     case_fatality_measure[, ':=' (value = value.x / (value.x + value.y),
       value.x = NULL,
       value.y = NULL)]
+    case_fatality_measure[is.nan(value) == TRUE, value := NA]
 
-    case_fatality_site_measure <- case_fatality_all[, .(value.x = sum(value.x), value.y = sum(value.y)), by = .(yearmonth, town, measure, sub_measure, group, site_type, relative_month)]
+    case_fatality_site_measure <- case_fatality[, .(value.x = sum(value.x), value.y = sum(value.y)), by = .(yearmonth, town, measure, sub_measure, group, site_type, relative_month)]
     case_fatality_site_measure[, ':=' (value = value.x / (value.x + value.y),
       value.x = NULL,
       value.y = NULL)]
+    case_fatality_site_measure[is.nan(value) == TRUE, value := NA]
 
-    vname <- paste0("sec_case_fatality_", days, "days_measure")
+    fname <- paste0("sec case fatality ", days, "days")
+    vname <- paste0(gsub(" ", "_", fname, fixed = TRUE), "_measure")
     assign(vname, case_fatality_measure)
     save(list = vname, file = createMeasureFilename(paste0("sec case fatality ", days, "days"), "lsoa"))
 
-    vname <- paste0("sec_case_fatality_", days, "days_site_measure")
+    vname <- paste0(gsub(" ", "_", fname, fixed = TRUE), "_site_measure")
     assign(vname, case_fatality_site_measure)
     save(list = vname, file = createMeasureFilename(paste0("sec case fatality ", days, "days"), "site"))
 
@@ -43,24 +43,26 @@ save_deaths_measure <- function(days_to_death_cuts = 7) {
 
   hes_apc_cips_with_deaths <- hes_apc_cips_and_deaths[death_record == TRUE]
 
-  measures <- c("all", "in_cips", "not_in_cips")
+  measures <- c("all", "in cips", "not in cips")
 
   deaths_measures_lsoa <- lapply(measures, prepareDeathsMeasure, deaths_data = hes_apc_cips_with_deaths, days = days_to_death_cuts)
 
   invisible(
     lapply(deaths_measures_lsoa, function(data) {
-    vname <- unique(data$measure)
-    assign(paste0(vname, "_measure"), data)
-    save(list = paste0(vname, "_measure"), file = createMeasureFilename(gsub("_", " ", vname, fixed = TRUE), "lsoa"))
+      fname <- unique(data$measure)
+      vname <- paste0(gsub(" ", "_", fname, fixed = TRUE), "_measure")
+      assign(vname, data)
+      save(list = vname, file = createMeasureFilename(fname, "lsoa"))
   }))
 
   deaths_measures_site <- lapply(deaths_measures_lsoa, collapseLsoas2Sites)
 
   invisible(
   lapply(deaths_measures_site, function(data) {
-    vname <- unique(data$measure)
-    assign(paste0(vname, "_site_measure"), data)
-    save(list = paste0(vname, "_site_measure"), file = createMeasureFilename(gsub("_", " ", vname, fixed = TRUE), "site"))
+    fname <- unique(data$measure)
+    vname <- paste0(gsub(" ", "_", fname, fixed = TRUE), "_site_measure")
+    assign(vname, data)
+    save(list = vname, file = createMeasureFilename(fname, "site"))
   }))
 }
 
@@ -68,9 +70,9 @@ save_deaths_measure <- function(days_to_death_cuts = 7) {
 prepareDeathsMeasure <- function(meas, deaths_data, days = 7) {
   if(meas == "all") {
     deaths <- copy(deaths_data[died_in_cips == FALSE | (died_in_cips == TRUE & days_to_death_grp <= days)])
-  } else if(meas == "in_cips") {
+  } else if(meas == "in cips") {
     deaths <- copy(deaths_data[(died_in_cips == TRUE & days_to_death_grp <= days)])
-  } else if(meas == "not_in_cips") {
+  } else if(meas == "not in cips") {
     deaths <- copy(deaths_data[died_in_cips == FALSE])
   } else {
     stop("Measure not specified.")
@@ -83,14 +85,17 @@ prepareDeathsMeasure <- function(meas, deaths_data, days = 7) {
 
   setnames(deaths, "condition_death", "condition")
 
-  deaths_measure_by_condition <- deaths[substr(lsoa, 1, 1) == "E", .(value = .N), by = .(lsoa, yearmonth, condition)]
-  deaths_measure_all <- deaths_measure_by_condition[condition != "other", .(value = sum(value)), by = .(lsoa, yearmonth)]
-
+  deaths_measure_by_condition <- deaths[, .(value = .N), by = .(lsoa, yearmonth, condition)]
   setnames(deaths_measure_by_condition, "condition", "sub_measure")
+
+  deaths_measure_all <- deaths_measure_by_condition[sub_measure != "other", .(value = sum(value)), by = .(lsoa, yearmonth)]
   deaths_measure_all[, sub_measure := "any sec"]
 
-  deaths_measure <- rbind(deaths_measure_by_condition, deaths_measure_all)
-  deaths_measure[, measure := paste0("sec_deaths_", meas, "_", days, "days")]
+  deaths_measure_trauma <- deaths_measure_by_condition[sub_measure %in% c("falls", "serious head injury", "road traffic accident"), .(value = sum(value)), by = .(lsoa, yearmonth)]
+  deaths_measure_trauma[, sub_measure := "any trauma sec"]
+
+  deaths_measure <- rbind(deaths_measure_by_condition, deaths_measure_all, deaths_measure_trauma)
+  deaths_measure[, measure := paste0("sec deaths ", meas, " ", days, "days")]
 
   deaths_measure <- fillDataPoints(deaths_measure)
 
@@ -100,18 +105,21 @@ prepareDeathsMeasure <- function(meas, deaths_data, days = 7) {
 
 prepareCases <- function(days, cases_data) {
   # CIPS in which the patient did not die or died >n days after admission
-  cases <- copy(cases_data[(died_in_cips == TRUE & days_to_death_grp > days) | is.na(days_to_death_grp)])
+  cases <- copy(cases_data[(died_in_cips == TRUE & days_to_death_grp > days) | died_in_cips == FALSE])
 
   setnames(cases, c("lsoa_case", "yearmonth_case", "condition_case"), c("lsoa", "yearmonth", "condition"))
 
   cases_measure_by_condition <- cases[, .(value = .N), by = .(lsoa, yearmonth, condition)]
-  cases_measure_by_condition_all <- cases_measure_by_condition[condition != "other", .(value = sum(value)), by = .(lsoa, yearmonth)]
-
   setnames(cases_measure_by_condition, "condition", "sub_measure")
+
+  cases_measure_by_condition_all <- cases_measure_by_condition[sub_measure != "other", .(value = sum(value)), by = .(lsoa, yearmonth)]
   cases_measure_by_condition_all[, sub_measure := "any sec"]
 
-  cases_measure <- rbind(cases_measure_by_condition, cases_measure_by_condition_all)
-  cases_measure[, measure := paste0("sec_case_fatality_", days, "days")]
+  cases_measure_by_condition_trauma <- cases_measure_by_condition[sub_measure %in% c("falls", "serious head injury", "road traffic accident"), .(value = sum(value)), by = .(lsoa, yearmonth)]
+  cases_measure_by_condition_trauma[, sub_measure := "any trauma sec"]
+
+  cases_measure <- rbind(cases_measure_by_condition, cases_measure_by_condition_all, cases_measure_by_condition_trauma)
+  cases_measure[, measure := paste0("sec case fatality ", days, "days")]
 
   cases_measure <- fillDataPoints(cases_measure)
 
