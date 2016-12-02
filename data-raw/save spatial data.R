@@ -105,6 +105,21 @@ save(ambulance_service_boundaries_2015, file = "data/ambulance service boundarie
 rm(ccg2015_boundary_data, ccg2015_boundary_data_amb, ambulance_service_ccg2015_lookup, ambulance_service_boundaries_2015)
 gc()
 
-# tools::checkRdaFiles("data/ambulance service boundaries 2015.Rda")
-# tools::resaveRdaFiles("data/ambulance service boundaries 2015.Rda")
-# tools::checkRdaFiles("data/ambulance service boundaries 2015.Rda")
+
+
+# GB Country Boundaries ---------------------------------------------------
+
+england_boundary_data <- readOGR("data-raw/geography data/Boundaries/Countries_December_2015_Ultra_Generalised_Clipped_Boundaries_in_Great_Britain", "Countries_December_2015_Ultra_Generalised_Clipped_Boundaries_in_Great_Britain")
+
+# Transform to WGS84 coordinate system
+england_boundary_data <- spTransform(england_boundary_data, WGS84_projection_str)
+
+# Keep only England
+england_boundary_data <- england_boundary_data[substr(england_boundary_data$ctry15cd, 1, 1) == "E", ]
+
+# Save
+save(england_boundary_data, file = "data/england boundary 2015.Rda", compress = "xz")
+
+# tools::checkRdaFiles("data/england boundary 2015.Rda")
+# tools::resaveRdaFiles("data/england boundary 2015.Rda")
+# tools::checkRdaFiles("data/england boundary 2015.Rda")
