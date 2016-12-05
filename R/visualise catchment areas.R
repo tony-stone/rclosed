@@ -81,55 +81,115 @@ catchment_boundaries <- fortify(intervention_catchment_boundaries)
 catchment_boundaries <- merge(intervention_catchment_boundaries@data, catchment_boundaries, by.x = "town", by.y = "id")
 
 
-# # Calculate minimum bounds in which all boundary vertices are contained
-# location_bounds_auto <- do.call(rbind, lapply(unique(catchment_areas$id), function(x, data) {
-#   return(data.frame(town = x, left = min(data$long[data$id == x]), bottom = min(data$lat[data$id == x]), right =  max(data$long[data$id == x]), top = max(data$lat[data$id == x]), stringsAsFactors = FALSE))
-# }, data = catchment_areas))
+# Calculate minimum bounds in which all boundary vertices are contained
+# location_bounds_auto <- data.table(do.call(rbind, lapply(unique(catchment_boundaries$town), function(x, data) {
+#   return(data.frame(town = x, left = min(data$long[data$town == x]), bottom = min(data$lat[data$town == x]), right =  max(data$long[data$town == x]), top = max(data$lat[data$town == x]), stringsAsFactors = FALSE))
+# }, data = catchment_boundaries)))
+# location_bounds_auto[, ':=' (left = floor(left * 100) / 100,
+#   bottom = floor(bottom * 100) / 100,
+#   right = ceiling(right * 100) / 100,
+#   top = ceiling(top * 100) / 100)]
+# dput(data.frame(location_bounds_auto))
 
-
-print(getSiteMap("Bishop Auckland", catchment_areas, catchment_boundaries, ed_sites))
+print(getSiteMap("Rochdale", catchment_areas, catchment_boundaries, ed_sites, map_bg = TRUE))
 print(getEnglandMap(catchment_areas, ed_sites))
 
+getSiteMap <- function(town, catchment_areas, catchment_boundaries, ed_sites, narrow_bounds = FALSE, quintile_fill = FALSE, map_bg = TRUE, show_labels = "all") {
 
-getSiteMap <- function(town, catchment_areas, catchment_boundaries, ed_sites) {
+  if(missing(show_labels)) {
+    if(narrow_bounds) {
+      show_labels <- "none"
+    } else {
+      show_labels <- "all"
+    }
+  }
 
-  # Nice bounds (by eye)
-  location_bounds <- data.frame(
-    town = c("Bishop Auckland", "Hartlepool", "Hemel Hempstead", "Newark", "Rochdale"),
-    left = c(-3.00, -1.68, -0.85, -1.55, -2.60),
-    bottom = c(54.00, 54.53, 51.57, 52.60, 53.50),
-    right = c(-1.27, -1.00, -0.15, -0.15, -1.70),
-    top = c(54.99, 54.85, 51.90, 53.35, 53.95))
+  if(narrow_bounds) {
+    location_bounds <- data.frame(
+      town = c("Bishop Auckland", "Hartlepool", "Hemel Hempstead", "Newark", "Rochdale"),
+      left = c(-2.36, -1.46, -0.73, -1.12, -2.25),
+      bottom = c(54.52, 54.62, 51.61, 52.76, 53.59),
+      right = c(-1.45, -1.15, -0.31, -0.57, -2),
+      top = c(54.88, 54.83, 51.84, 53.23, 53.77))
+  } else {
+    # Nice bounds (by eye)
+    location_bounds <- data.frame(
+      town = c("Bishop Auckland", "Hartlepool", "Hemel Hempstead", "Newark", "Rochdale"),
+      left = c(-3.00, -1.68, -0.85, -1.55, -2.60),
+      bottom = c(54.00, 54.53, 51.57, 52.60, 53.50),
+      right = c(-1.27, -1.00, -0.15, -0.15, -1.70),
+      top = c(54.99, 54.85, 51.90, 53.35, 53.95))
+  }
 
-mymap <- get_map(location = unlist(location_bounds[location_bounds$town == town, 2:5]), source = "stamen", maptype = "toner-background")
+  if(map_bg) {
+    mymap <- get_map(location = unlist(location_bounds[location_bounds$town == town, 2:5]), source = "stamen", maptype = "toner-background")
+    plot <- ggmap(mymap, base_layer=ggplot(aes(x=lon,y=lat), data=zips), extent = "normal", maprange = FALSE) +
+      coord_map(projection = "mercator",
+        xlim = c(attr(mymap, "bb")$ll.lon, attr(mymap, "bb")$ur.lon),
+        ylim = c(attr(mymap, "bb")$ll.lat, attr(mymap, "bb")$ur.lat))
+  } else {
+    plot <- ggplot() +
+      coord_map(projection = "mercator",
+        xlim = unlist(location_bounds[location_bounds$town == town, c("left", "right")]),
+        ylim = unlist(location_bounds[location_bounds$town == town, c("bottom", "top")]))
+  }
 
-return(ggmap(mymap, base_layer=ggplot(aes(x=lon,y=lat), data=zips), extent = "normal", maprange = FALSE) +
-  coord_map(projection = "mercator",
-    xlim = c(attr(mymap, "bb")$ll.lon, attr(mymap, "bb")$ur.lon),
-    ylim = c(attr(mymap, "bb")$ll.lat, attr(mymap, "bb")$ur.lat)) +
-#  geom_polygon(data = catchment_areas[catchment_areas$town == town,], aes(x = long, y = lat, group = group.y, fill = diff_first_second), size = 0, alpha = .75) +
-#   scale_fill_gradient(low = "#f7fcf0", high = "#084081", limits = c(0, 25),
-#     guide = guide_legend(title = "Increased time to next\nnearest ED (minutes)")) +
-  geom_polygon(data = catchment_areas[catchment_areas$town == town,], aes(x = long, y = lat, group = group.y, fill = as.character(time_to_next_quintile)), size = 0, alpha = .75) +
-  scale_fill_manual(values = c("1" = '#f0f9e8',
-    "2" = "#bae4bc",
-    "3" = "#7bccc4",
-    "4" = "#43a2ca",
-    "5" = "#0868ac"),
-    labels = c("1 (least increase)", 2:4, "5 (greatest increase)"),
-    limits = as.character(1:5),
-    guide = guide_legend(title = "Increased time to next\nnearest ED (quintiles)")) +
-  geom_point(data = ed_sites, aes(x = long, y = lat, shape = site_type), colour = "#000000", size = 3) +
-  scale_shape_manual(values = c("intervention ED" = 1, "other ED" = 15), guide = guide_legend(title = "ED site type")) +
-  geom_path(data = catchment_boundaries[catchment_boundaries$town == town,], aes(x = long, y = lat, group = group.y), show.legend = FALSE, colour = "#666666", size = 1) +
-  geom_label_repel(data = ed_sites[attr(mymap, "bb")$ll.lon <= ed_sites$long & ed_sites$long <= attr(mymap, "bb")$ur.lon & attr(mymap, "bb")$ll.lat <= ed_sites$lat & ed_sites$lat <= attr(mymap, "bb")$ur.lat, ], aes(x = long, y = lat, label = hospital_name),
-    fontface = 'bold',
-    box.padding = unit(0.35, "lines"),
-    point.padding = unit(0.5, "lines"),
-    segment.color = "#000000",
-    segment.size = 1) +
-  theme_void() +
-  theme(legend.justification = c(1, 0), legend.position = c(1, 0), legend.background = element_rect(colour = '#999999', fill = 'white', size = 0.5)))
+  if(quintile_fill) {
+    # Quintile fill is a bit daft in this case, we lose power by "discretising" continuous data
+    plot <- plot +
+      geom_polygon(data = catchment_areas[catchment_areas$town == town,], aes(x = long, y = lat, group = group.y, fill = as.character(time_to_next_quintile)), size = 0, alpha = .75) +
+      scale_fill_manual(values = c("1" = '#f0f9e8',
+        "2" = "#bae4bc",
+        "3" = "#7bccc4",
+        "4" = "#43a2ca",
+        "5" = "#0868ac"),
+        labels = c("1 (least increase)", 2:4, "5 (greatest increase)"),
+        limits = as.character(1:5),
+        guide = guide_legend(title = "Increased time to next\nnearest ED (quintiles)"))
+  } else {
+    plot <- plot +
+      geom_polygon(data = catchment_areas[catchment_areas$town == town,], aes(x = long, y = lat, group = group.y, fill = diff_first_second), size = 0, alpha = .75) +
+      scale_fill_gradientn(colours = colorRampPalette(c("#ece7f2", "#081d58"))(25), limits = c(1, 25), breaks = c(1, seq(5, 25, 5)),
+        guide = guide_colourbar(title = "Increased time to next\nnearest ED (minutes)", reverse = TRUE))
+  }
+
+  if(narrow_bounds) {
+    plot <- plot +
+      geom_point(data = ed_sites[ed_sites$site_type == "intervention ED", ], aes(x = long, y = lat), shape = 1, colour = "#000000", size = 3, show.legend = FALSE)
+  } else {
+    plot <- plot +
+      geom_point(data = ed_sites, aes(x = long, y = lat, shape = site_type), colour = "#000000", size = 3) +
+      scale_shape_manual(values = c("intervention ED" = 1, "other ED" = 16), guide = guide_legend(title = "ED site type"))
+  }
+
+  plot <- plot +
+    geom_path(data = catchment_boundaries[catchment_boundaries$town == town,], aes(x = long, y = lat, group = group.y), show.legend = FALSE, colour = "#666666", size = 1) +
+    theme_void()
+
+  if(show_labels %in% c("all", "intervention", "other")) {
+
+    # Limit labels by geographic extent
+    if(map_bg) {
+      labels_data <- ed_sites[attr(mymap, "bb")$ll.lon <= ed_sites$long & ed_sites$long <= attr(mymap, "bb")$ur.lon & attr(mymap, "bb")$ll.lat <= ed_sites$lat & ed_sites$lat <= attr(mymap, "bb")$ur.lat, ]
+    } else {
+      labels_data <- ed_sites[location_bounds$left[location_bounds$town == town] <= ed_sites$long & ed_sites$long <= location_bounds$right[location_bounds$town == town] & location_bounds$bottom[location_bounds$town == town] <= ed_sites$lat & ed_sites$lat <= location_bounds$top[location_bounds$town == town], ]
+    }
+
+    if(show_labels == "intervention" | show_labels == "other") {
+      labels_data <- labels_data[labels_data$site_type == paste0(show_labels, " ED"), ]
+    }
+
+    plot <- plot +
+      geom_label_repel(data = labels_data, aes(x = long, y = lat, label = hospital_name),
+        fontface = 'bold',
+        box.padding = unit(0.35, "lines"),
+        point.padding = unit(0.5, "lines"),
+        segment.color = "#000000",
+        segment.size = 1) +
+      theme(legend.justification = c(1, 0), legend.position = c(1, 0), legend.background = element_rect(colour = '#999999', fill = 'white', size = 0.5))
+  }
+
+  return(plot)
 }
 
 
@@ -147,7 +207,7 @@ getEnglandMap <- function(catchment_areas, ed_sites) {
     "Newark" = "#e78ac3",
     "Rochdale" = "#a6d854")) +
   geom_point(data = ed_sites, aes(x = long, y = lat, shape = site_type), colour = "#000000", size = 1.5) +
-  scale_shape_manual(values = c("intervention ED" = 1, "other ED" = 15)) +
+  scale_shape_manual(values = c("intervention ED" = 1, "other ED" = 16)) +
   theme_void() +
   coord_map() +
   theme(legend.justification = c(0, 1), legend.position = c(-0.1, 0.95), legend.background = element_rect(colour = '#999999', fill = 'white', size = 0.5)))
