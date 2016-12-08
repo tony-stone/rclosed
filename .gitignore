@@ -13,3 +13,5 @@ test/**/*
 test/*
 measures/**/*
 measures/*
+plots/**/*
+plots/*

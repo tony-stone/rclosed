@@ -92,7 +92,14 @@ catchment_boundaries <- merge(intervention_catchment_boundaries@data, catchment_
 # dput(data.frame(location_bounds_auto))
 
 print(getSiteMap("Rochdale", catchment_areas, catchment_boundaries, ed_sites, map_bg = TRUE))
+
+sites <- sort(unique(catchment_areas$town))
+sapply(sites, function(site, catchment_areas, catchment_boundaries, ed_sites) {
+  ggsave(paste0(site, " map.png"), plot = getSiteMap(site, catchment_areas, catchment_boundaries, ed_sites, map_bg = TRUE), path = "plots/", width = 15, height = 15, units = "cm")
+}, catchment_areas, catchment_boundaries, ed_sites)
+
 print(getEnglandMap(catchment_areas, ed_sites))
+ggsave("england map.png", plot = getEnglandMap(catchment_areas, ed_sites), path = "plots/", width = 15, height = 15, units = "cm")
 
 getSiteMap <- function(town, catchment_areas, catchment_boundaries, ed_sites, narrow_bounds = FALSE, quintile_fill = FALSE, map_bg = TRUE, show_labels = "all") {
 
