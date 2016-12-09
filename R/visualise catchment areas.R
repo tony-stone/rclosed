@@ -152,12 +152,12 @@ getSiteMap <- function(town, catchment_areas, catchment_boundaries, ed_sites, na
         "5" = "#0868ac"),
         labels = c("1 (least increase)", 2:4, "5 (greatest increase)"),
         limits = as.character(1:5),
-        guide = guide_legend(title = "Increased time to next\nnearest ED (quintiles)"))
+        guide = guide_legend(title = "Increased time to\nnext nearest ED\n(quintiles)"))
   } else {
     plot <- plot +
       geom_polygon(data = catchment_areas[catchment_areas$town == town,], aes(x = long, y = lat, group = group.y, fill = diff_first_second), size = 0, alpha = .75) +
       scale_fill_gradientn(colours = colorRampPalette(c("#ece7f2", "#081d58"))(25), limits = c(1, 25), breaks = c(1, seq(5, 25, 5)),
-        guide = guide_colourbar(title = "Increased time to next\nnearest ED (minutes)", reverse = TRUE))
+        guide = guide_colourbar(title = "Increased time to\nnext nearest ED\n(minutes)", reverse = FALSE))
   }
 
   if(narrow_bounds) {
@@ -193,7 +193,8 @@ getSiteMap <- function(town, catchment_areas, catchment_boundaries, ed_sites, na
         point.padding = unit(0.5, "lines"),
         segment.color = "#000000",
         segment.size = 1) +
-      theme(legend.justification = c(1, 0), legend.position = c(1, 0), legend.background = element_rect(colour = '#999999', fill = 'white', size = 0.5))
+      theme(legend.box = "horizontal", legend.direction = "horizontal", legend.position = "bottom", legend.background = element_rect(colour = '#999999', fill = 'white', size = 0.5)) # legend.box.just = "left",
+      #theme(legend.justification = c(1, 0), legend.position = c(1, 0), legend.background = element_rect(colour = '#999999', fill = 'white', size = 0.5))
   }
 
   return(plot)
