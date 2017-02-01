@@ -1,4 +1,4 @@
-
+## NOTE: In this file "calls" actually refers to "incidents"
 
 save_ambulance_red_calls_measures <- function() {
 
@@ -149,4 +149,36 @@ calc_green_calls_vols_measure <- function(amb_calls_data) {
   amb_call_geo_month_formatted <- fillDataPoints(amb_call_geo_month, TRUE, TRUE)
 
   return(amb_call_geo_month_formatted)
+}
+
+
+save_ambulance_all_calls_measure <- function() {
+
+  load("data/site data.Rda")
+  load("data/catchment area set final.Rda")
+  ambulance_data_valid_lsoas <- merge(site_data[, .(town, ambulance_service = tolower(ambulance_service))], catchment_area_set_final[, .(town, lsoa)], by = "town")
+
+  load("data/amb_data_red_calls.Rda")
+  load("data/amb_data_green_calls.Rda")
+
+  amb_data_red_calls_in_ca <- merge(amb_data_red_calls, ambulance_data_valid_lsoas, by = c("lsoa", "ambulance_service"))[, ambulance_service := NULL]
+  amb_data_green_calls_in_ca <- merge(amb_data_green_calls, ambulance_data_valid_lsoas, by = c("lsoa", "ambulance_service"))[, ambulance_service := NULL]
+
+  amb_data_all_calls <- rbind(amb_data_red_calls_in_ca[, .(lsoa, yearmonth)], amb_data_green_calls_in_ca[, .(lsoa, yearmonth)])
+
+  rm(amb_data_red_calls, amb_data_red_calls_in_ca, amb_data_green_calls, amb_data_green_calls_in_ca, site_data, catchment_area_set_final, ambulance_data_valid_lsoas)
+
+  amb_vols_geo_month <- amb_data_all_calls[, .(value = .N), by = .(lsoa, yearmonth)]
+  amb_vols_geo_month[, sub_measure := "total"]
+
+  # add measure var
+  amb_vols_geo_month[, measure := "ambulance all calls"]
+
+  # format
+  amb_all_calls_measure <- fillDataPoints(amb_vols_geo_month, TRUE, TRUE)
+  amb_all_calls_site_measure <- collapseLsoas2Sites(amb_all_calls_measure)
+
+  # save
+  save(amb_all_calls_measure, file = createMeasureFilename("ambulance all calls"), compress = "bzip2")
+  save(amb_all_calls_site_measure, file = createMeasureFilename("ambulance all calls", "site"))
 }
