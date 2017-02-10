@@ -215,7 +215,7 @@ getEnglandMap <- function(catchment_areas, ed_sites) {
     "Newark" = "#e78ac3",
     "Rochdale" = "#a6d854")) +
   geom_point(data = ed_sites, aes(x = long, y = lat, shape = site_type), colour = "#000000", size = 1.5) +
-  scale_shape_manual(values = c("intervention ED" = 1, "other ED" = 16)) +
+  scale_shape_manual(values = c("intervention ED" = 1, "other ED" = 16), name = guide_legend("site type")) +
   theme_void() +
   coord_map() +
   theme(legend.justification = c(0, 1), legend.position = c(-0.1, 0.95), legend.background = element_rect(colour = '#999999', fill = 'white', size = 0.5)))
