@@ -61,7 +61,7 @@ all_ae_attd_plot <- ggplot(ed_attendances_by_site_month[site_type != "pooled con
   geom_rect(data = time_periods, aes(xmin = end), xmax = Inf, ymin = -Inf, ymax = Inf, fill = "black", alpha = 0.5, inherit.aes = FALSE) +
   geom_vline(data = time_periods, aes(xintercept = as.double(intv)))
 
-ggsave("all HES AE attendances by site.jpg", all_ae_attd_plot, path = "D:/", width = 30, height = 20, units = "cm")
+ggsave("all HES AE attendances by site.jpg", all_ae_attd_plot, path = "plots/data quality/", width = 30, height = 20, units = "cm")
 
 
 
@@ -166,9 +166,9 @@ plotStuff <- function(conditions_data, title, time_periods) {
 all_ucc_em_adms_plot <- plotStuff(emergency_admissions_by_ucc_month, "urgent care", time_periods)
 all_sec_em_adms_plot <- plotStuff(emergency_admissions_by_sec_month, "serious, emergency", time_periods)
 
-ggsave("all emergency admissions by site.jpg", all_em_adms_plot, path = "D:/", width = 30, height = 20, units = "cm")
-ggsave("all ucc emergency admissions by site.jpg", all_ucc_em_adms_plot, path = "D:/", width = 30, height = 20, units = "cm")
-ggsave("all sec emergency admissions by site.jpg", all_sec_em_adms_plot, path = "D:/", width = 30, height = 20, units = "cm")
+ggsave("all emergency admissions by site.jpg", all_em_adms_plot, path = "plots/data quality/", width = 30, height = 20, units = "cm")
+ggsave("all ucc emergency admissions by site.jpg", all_ucc_em_adms_plot, path = "plots/data quality/", width = 30, height = 20, units = "cm")
+ggsave("all sec emergency admissions by site.jpg", all_sec_em_adms_plot, path = "plots/data quality/", width = 30, height = 20, units = "cm")
 
 
 
@@ -245,8 +245,8 @@ sec_deaths_plot <- ggplot(data[site_type != "pooled control" & sub_measure == "a
   geom_rect(data = time_periods, aes(xmin = end), xmax = Inf, ymin = -Inf, ymax = Inf, fill = "black", alpha = 0.5, inherit.aes = FALSE) +
   geom_vline(data = time_periods, aes(xintercept = as.double(intv)))
 
-ggsave("all deaths by site.jpg", all_deaths_plot, path = "D:/", width = 30, height = 20, units = "cm")
-ggsave("all sec deaths by site.jpg", sec_deaths_plot, path = "D:/", width = 30, height = 20, units = "cm")
+ggsave("all deaths by site.jpg", all_deaths_plot, path = "plots/data quality/", width = 30, height = 20, units = "cm")
+ggsave("all sec deaths by site.jpg", sec_deaths_plot, path = "plots/data quality/", width = 30, height = 20, units = "cm")
 
 # val_names <- c("all", "any", sort(unique(data[sub_measure != "any" & sub_measure != "other", sub_measure])), "other")
 # col_vals <- c("#000000",
