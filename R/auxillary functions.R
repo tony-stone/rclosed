@@ -5,7 +5,7 @@ createMeasureFilename <- function(m_name, geo_level = "lsoa") {
 
 
 
-fillDataPoints <- function(data, count_data = TRUE, lsoa_level = TRUE) {
+fillDataPoints <- function(data, count_data = TRUE, lsoa_level = TRUE, crop = TRUE) {
 
   # This function does not work for datasets with more than one measure (as they would, potentially, have different sub_measures)
   #     so ensure we are only working with one measure
@@ -70,9 +70,11 @@ fillDataPoints <- function(data, count_data = TRUE, lsoa_level = TRUE) {
   }
 
   # Remove data outwith 2 years of intervention
-  data_measure <- data_measure_all[relative_month >= 1L & relative_month <= 48L]
+  if(crop == TRUE) {
+    data_measure_all <- data_measure_all[relative_month >= 1L & relative_month <= 48L]
+  }
 
-  return(data_measure)
+  return(data_measure_all)
 }
 
 
