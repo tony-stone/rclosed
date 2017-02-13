@@ -1,5 +1,71 @@
+library(data.table)
 library(ggplot2)
 
+
+
+# HES A&E -----------------------------------------------------------------
+
+db_conn <- connect2DB()
+
+tbl_name <- "attendances_by_trust_lsoa_month"
+add_logic <- ""
+add_fields <- ""
+
+# Prepare query string to create temp table
+sql_create_tbl <- getSqlUpdateQuery("ae", tbl_name, add_logic, add_fields)
+
+# Takes ~1min
+resource <- RJDBC::dbSendUpdate(db_conn, sql_create_tbl)
+
+# retrieve data
+ed_attendances_by_trust_lsoa_month <- getDataFromTempTable(db_conn, tbl_name, "ae", add_fields)
+
+# Disconnect from DB
+DBI::dbDisconnect(db_conn)
+db_conn <- NULL
+
+# collapse to attendances by (lsoa, month, mode of arrival)
+ed_attendances_by_lsoa_month <- ed_attendances_by_trust_lsoa_month[, .(value = sum(value)), by = .(lsoa, yearmonth)]
+
+ed_attendances_by_lsoa_month[, ':=' (measure = "ed attendances",
+  sub_measure = "all")]
+
+# format
+ed_attendances_by_lsoa_month_formatted <- fillDataPoints(ed_attendances_by_lsoa_month, crop = FALSE)
+
+# Collapse to site level
+ed_attendances_by_site_month <- collapseLsoas2Sites(ed_attendances_by_lsoa_month_formatted)
+
+# add group town
+town_group_lookup <- unique(ed_attendances_by_site_month[site_type == "intervention", .(group, group_town = town)], by = c("group_town", "group"))
+ed_attendances_by_site_month <- merge(ed_attendances_by_site_month, town_group_lookup, by = "group")
+
+time_periods_long <- unique(ed_attendances_by_site_month[relative_month == 1 | relative_month == 48, .(relative_month, group_town, yearmonth)])
+var_names <- c("start", rep(NA, 46), "end")
+time_periods_long[, relative_month := var_names[relative_month]]
+time_periods <- dcast(time_periods_long, group_town ~ relative_month, value.var = "yearmonth")
+time_periods[, intv := start + floor((end - start) / 2)]
+time_periods[start < as.Date("2007-04-01"), start := as.Date("2007-04-01")]
+
+
+# plot
+all_ae_attd_plot <- ggplot(ed_attendances_by_site_month[site_type != "pooled control" & sub_measure == "all"], aes(x = yearmonth, y = value, linetype = site_type)) +
+  scale_x_date(name = "month", date_breaks = "3 months", date_labels = "%b %Y", expand = c(0, 15)) + #scale_x_continuous(breaks = 1:48, limits = c(1, 48), expand = c(0, 0.5))
+  scale_y_continuous(labels = scales::comma, limits = c(0, NA)) +
+  scale_linetype_discrete(name = guide_legend("site type")) +
+  geom_line(size = 1) +
+  facet_wrap(~ group_town, ncol = 2, scales = "fixed", shrink = TRUE, as.table = TRUE, drop = TRUE) +
+  theme(axis.text.x = element_text(face="bold", angle=90, hjust=0.0, vjust=0.3)) +
+  labs(title = "Monthly HES A&E attendances", y = "attendances", x = "month") +
+  geom_rect(data = time_periods, aes(xmax = start), xmin = -Inf, ymin = -Inf, ymax = Inf, fill = "black", alpha = 0.5, inherit.aes = FALSE) +
+  geom_rect(data = time_periods, aes(xmin = end), xmax = Inf, ymin = -Inf, ymax = Inf, fill = "black", alpha = 0.5, inherit.aes = FALSE) +
+  geom_vline(data = time_periods, aes(xintercept = as.double(intv)))
+
+ggsave("all HES AE attendances by site.jpg", all_ae_attd_plot, path = "D:/", width = 30, height = 20, units = "cm")
+
+
+
+# HES APC -----------------------------------------------------------------
 
 db_conn <- connect2DB()
 
@@ -42,8 +108,8 @@ emergency_admissions_by_sec_lsoa_month[, measure := "SEC emergency admissions"]
 
 
 # format
-emergency_admissions_by_ucc_lsoa_month <- fillDataPoints(emergency_admissions_by_ucc_lsoa_month)
-emergency_admissions_by_sec_lsoa_month <- fillDataPoints(emergency_admissions_by_sec_lsoa_month)
+emergency_admissions_by_ucc_lsoa_month <- fillDataPoints(emergency_admissions_by_ucc_lsoa_month, crop = FALSE)
+emergency_admissions_by_sec_lsoa_month <- fillDataPoints(emergency_admissions_by_sec_lsoa_month, crop = FALSE)
 
 # Collapse to site level
 emergency_admissions_by_ucc_month <- collapseLsoas2Sites(emergency_admissions_by_ucc_lsoa_month)
@@ -57,18 +123,21 @@ emergency_admissions_by_sec_month <- merge(emergency_admissions_by_sec_month, to
 all_adm <- emergency_admissions_by_sec_month[, .(value = sum(value)), by = .(yearmonth, measure, town, group, group_town, site_type, relative_month)]
 all_adm[, sub_measure := "all"]
 
-all_em_adms_plot <- ggplot(all_adm[site_type != "pooled control" & sub_measure == "all"], aes(x = relative_month, y = value, linetype = site_type)) +
-  scale_x_continuous(breaks = 1:48, limits = c(1, 48), expand = c(0, 0.5)) +
-  geom_vline(xintercept = 24.5) +
+
+all_em_adms_plot <- ggplot(all_adm[site_type != "pooled control" & sub_measure == "all"], aes(x = yearmonth, y = value, linetype = site_type)) +
+  scale_x_date(name = "month", date_breaks = "3 months", date_labels = "%b %Y", expand = c(0, 15)) +
   scale_y_continuous(labels = scales::comma, limits = c(0, NA)) +
+  scale_linetype_discrete(name = guide_legend("site type")) +
   geom_line(size = 1) +
-  facet_wrap(~ group_town, ncol = 2, scales = "free_y", shrink = TRUE, as.table = TRUE, drop = TRUE) +
+  facet_wrap(~ group_town, ncol = 2, scales = "fixed", shrink = TRUE, as.table = TRUE, drop = TRUE) +
   theme(axis.text.x = element_text(face="bold", angle=90, hjust=0.0, vjust=0.3)) +
-  labs(title = "Monthly emergency admissions for all conditions", y = "admissions", x = "relative month") +
-  scale_linetype_discrete(name = guide_legend("site type"))
+  labs(title = "Monthly emergency admissions for all conditions", y = "admissions", x = "month") +
+  geom_rect(data = time_periods, aes(xmax = start), xmin = -Inf, ymin = -Inf, ymax = Inf, fill = "black", alpha = 0.5, inherit.aes = FALSE) +
+  geom_rect(data = time_periods, aes(xmin = end), xmax = Inf, ymin = -Inf, ymax = Inf, fill = "black", alpha = 0.5, inherit.aes = FALSE) +
+  geom_vline(data = time_periods, aes(xintercept = as.double(intv)))
 
 
-plotStuff <- function(conditions_data, title) {
+plotStuff <- function(conditions_data, title, time_periods) {
   data <- copy(conditions_data)
 
   any_ucc_adm <- data[sub_measure != "other", .(value = sum(value)), by = .(yearmonth, measure, town, group, group_town, site_type, relative_month)]
@@ -78,29 +147,34 @@ plotStuff <- function(conditions_data, title) {
   data[sub_measure == "any" | sub_measure == "other", value_pc := value / sum(value), by = .(yearmonth, town)]
   data[sub_measure != "any" & sub_measure != "other", value_pc := value / sum(value), by = .(yearmonth, town)]
 
-
-  plot <- ggplot(data[site_type != "pooled control" & sub_measure == "any"], aes(x = relative_month, y = value_pc, linetype = site_type)) +
-    scale_x_continuous(breaks = 1:48, limits = c(1, 48), expand = c(0, 0.5)) +
-    geom_vline(xintercept = 24.5) +
+  plot <- ggplot(data[site_type != "pooled control" & sub_measure == "any"], aes(x = yearmonth, y = value_pc, linetype = site_type)) +
+    scale_x_date(name = "month", date_breaks = "3 months", date_labels = "%b %Y", expand = c(0, 15)) +
     scale_y_continuous(labels = scales::percent, limits = c(0, NA)) +
+    scale_linetype_discrete(name = guide_legend("site type")) +
     geom_line(size = 1) +
     facet_wrap(~ group_town, ncol = 2, scales = "fixed", shrink = TRUE, as.table = TRUE, drop = TRUE) +
     theme(axis.text.x = element_text(face="bold", angle=90, hjust=0.0, vjust=0.3)) +
     labs(title = paste("Monthly emergency admissions for any", title, "condition \n(as percentage of all emergency admissions)"), y = "admissions", x = "relative month") +
-    scale_linetype_discrete(name = guide_legend("site type"))
+    geom_rect(data = time_periods, aes(xmax = start), xmin = -Inf, ymin = -Inf, ymax = Inf, fill = "black", alpha = 0.5, inherit.aes = FALSE) +
+    geom_rect(data = time_periods, aes(xmin = end), xmax = Inf, ymin = -Inf, ymax = Inf, fill = "black", alpha = 0.5, inherit.aes = FALSE) +
+    geom_vline(data = time_periods, aes(xintercept = as.double(intv)))
+
 
   return(plot)
 }
 
-all_ucc_em_adms_plot <- plotStuff(emergency_admissions_by_ucc_month, "urgent care")
-all_sec_em_adms_plot <- plotStuff(emergency_admissions_by_sec_month, "serious, emergency")
+all_ucc_em_adms_plot <- plotStuff(emergency_admissions_by_ucc_month, "urgent care", time_periods)
+all_sec_em_adms_plot <- plotStuff(emergency_admissions_by_sec_month, "serious, emergency", time_periods)
 
 ggsave("all emergency admissions by site.jpg", all_em_adms_plot, path = "D:/", width = 30, height = 20, units = "cm")
 ggsave("all ucc emergency admissions by site.jpg", all_ucc_em_adms_plot, path = "D:/", width = 30, height = 20, units = "cm")
 ggsave("all sec emergency admissions by site.jpg", all_sec_em_adms_plot, path = "D:/", width = 30, height = 20, units = "cm")
 
 
-# Deaths
+
+
+# ONS/HES Deaths ----------------------------------------------------------
+
 # Load death data
 load("data/hes linked mortality.Rda")
 
@@ -125,7 +199,7 @@ setnames(ons_deaths, "condition", "sub_measure")
 ons_deaths_summary <- ons_deaths[, .(measure = "deaths", value = .N), by = .(yearmonth, lsoa, sub_measure)]
 
 # format
-ons_deaths_by_cond_lsoa_month <- fillDataPoints(ons_deaths_summary)
+ons_deaths_by_cond_lsoa_month <- fillDataPoints(ons_deaths_summary, crop = FALSE)
 
 # Collapse to site level
 ons_deaths_by_cond_month <- collapseLsoas2Sites(ons_deaths_by_cond_lsoa_month)
@@ -137,15 +211,17 @@ ons_deaths_by_cond_month <- merge(ons_deaths_by_cond_month, town_group_lookup, b
 all_deaths <- ons_deaths_by_cond_month[, .(value = sum(value)), by = .(yearmonth, measure, town, group, group_town, site_type, relative_month)]
 all_deaths[, sub_measure := "all"]
 
-all_deaths_plot <- ggplot(all_deaths[site_type != "pooled control" & sub_measure == "all"], aes(x = relative_month, y = value, linetype = site_type)) +
-  scale_x_continuous(breaks = 1:48, limits = c(1, 48), expand = c(0, 0.5)) +
-  geom_vline(xintercept = 24.5) +
+all_deaths_plot <- ggplot(all_deaths[site_type != "pooled control" & sub_measure == "all"], aes(x = yearmonth, y = value, linetype = site_type)) +
+  scale_x_date(name = "month", date_breaks = "3 months", date_labels = "%b %Y", expand = c(0, 15)) +
   scale_y_continuous(labels = scales::comma, limits = c(0, NA)) +
+  scale_linetype_discrete(name = guide_legend("site type")) +
   geom_line(size = 1) +
-  facet_wrap(~ group_town, ncol = 2, scales = "free_y", shrink = TRUE, as.table = TRUE, drop = TRUE) +
+  facet_wrap(~ group_town, ncol = 2, scales = "fixed", shrink = TRUE, as.table = TRUE, drop = TRUE) +
   theme(axis.text.x = element_text(face="bold", angle=90, hjust=0.0, vjust=0.3)) +
-  labs(title = "Monthly deaths from all causes", y = "deaths", x = "relative month") +
-  scale_linetype_discrete(name = guide_legend("site type"))
+  labs(title = "Monthly deaths from all causes", y = "deaths", x = "month") +
+  geom_rect(data = time_periods, aes(xmax = start), xmin = -Inf, ymin = -Inf, ymax = Inf, fill = "black", alpha = 0.5, inherit.aes = FALSE) +
+  geom_rect(data = time_periods, aes(xmin = end), xmax = Inf, ymin = -Inf, ymax = Inf, fill = "black", alpha = 0.5, inherit.aes = FALSE) +
+  geom_vline(data = time_periods, aes(xintercept = as.double(intv)))
 
 data <- copy(ons_deaths_by_cond_month)
 
@@ -157,15 +233,17 @@ data[sub_measure == "any" | sub_measure == "other", value_pc := value / sum(valu
 data[sub_measure != "any" & sub_measure != "other", value_pc := value / sum(value), by = .(yearmonth, town)]
 
 
-sec_deaths_plot <- ggplot(data[site_type != "pooled control" & sub_measure == "any"], aes(x = relative_month, y = value_pc, linetype = site_type)) +
-  scale_x_continuous(breaks = 1:48, limits = c(1, 48), expand = c(0, 0.5)) +
-  geom_vline(xintercept = 24.5) +
+sec_deaths_plot <- ggplot(data[site_type != "pooled control" & sub_measure == "any"], aes(x = yearmonth, y = value_pc, linetype = site_type)) +
+  scale_x_date(name = "month", date_breaks = "3 months", date_labels = "%b %Y", expand = c(0, 15)) +
   scale_y_continuous(labels = scales::percent, limits = c(0, NA)) +
+  scale_linetype_discrete(name = guide_legend("site type")) +
   geom_line(size = 1) +
   facet_wrap(~ group_town, ncol = 2, scales = "fixed", shrink = TRUE, as.table = TRUE, drop = TRUE) +
   theme(axis.text.x = element_text(face="bold", angle=90, hjust=0.0, vjust=0.3)) +
-  labs(title = paste("Monthly deaths from any serious, emergency condition \n(as percentage of all deaths)"), y = "deaths", x = "relative month") +
-  scale_linetype_discrete(name = guide_legend("site type"))
+  labs(title = "Monthly deaths from any serious, emergency condition \n(as percentage of all deaths)", y = "deaths", x = "month") +
+  geom_rect(data = time_periods, aes(xmax = start), xmin = -Inf, ymin = -Inf, ymax = Inf, fill = "black", alpha = 0.5, inherit.aes = FALSE) +
+  geom_rect(data = time_periods, aes(xmin = end), xmax = Inf, ymin = -Inf, ymax = Inf, fill = "black", alpha = 0.5, inherit.aes = FALSE) +
+  geom_vline(data = time_periods, aes(xintercept = as.double(intv)))
 
 ggsave("all deaths by site.jpg", all_deaths_plot, path = "D:/", width = 30, height = 20, units = "cm")
 ggsave("all sec deaths by site.jpg", sec_deaths_plot, path = "D:/", width = 30, height = 20, units = "cm")
