@@ -34,6 +34,7 @@ getCatchmentDemographics <- function(year_relative_to_intervention = 0L) {
     population = round(population, -2),
     aged_65plus_pc = round(pop_65plus / population * 100, 1),
     most_deprived_quintile_pc = round(imd_q1_pop / population * 100, 1),
+    rural_pc = round(rural_pop / population * 100, 1),
     non_white_pc = round(non_white_pop / population * 100, 1),
     longterm_illness_pc = round(longterm_illness_pop / population * 100, 1),
     #  annual_ed_attendances = round(annual_ed_attendances, -1),
@@ -108,15 +109,19 @@ saveCatchmentDemographics <- function() {
 
   lsoa_demographics[, ':=' (non_white_pop = non_white_pc / 100 * population,
     longterm_illness_pop = longterm_illness_pc / 100 * population,
-    imd_q1_pop = 0)]
+    imd_q1_pop = 0,
+    rural_pop = 0)]
 
   lsoa_demographics[imd_quintile == 1, imd_q1_pop := population]
+  lsoa_demographics[ruc_2level == "Rural", rural_pop := population]
 
   catchment_demographics_raw <- lsoa_demographics[, .(population = sum(population),
     pop_65plus = sum(population_65plus),
     non_white_pop = sum(non_white_pop),
     longterm_illness_pop = sum(longterm_illness_pop),
-    imd_q1_pop = sum(imd_q1_pop)), by = .(town, year_of_closure, year, group, site_type)]
+    imd_q1_pop = sum(imd_q1_pop),
+    rural_pop = sum(rural_pop)),
+    by = .(town, year_of_closure, year, group, site_type)]
 
   setnames(catchment_demographics_raw, "year", "demographics_year")
 

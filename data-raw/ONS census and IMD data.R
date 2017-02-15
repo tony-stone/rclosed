@@ -23,6 +23,26 @@ imd_data[, ':=' (imd_rank = as.integer(imd_rank),
       na.rm = FALSE, names = FALSE, type = 8)),
     labels = FALSE, include.lowest = TRUE))]
 
+
+# Rural Urban Classification for 2001-census based LSOAs, 2004
+# Source: Private communication between ONS Geography (hayley.holgate@ons.gov.uk) and tony.stone@sheffield.ac.uk
+# Retrieved: 15/02/2017
+# Note: Resaved from .xls to .xlsx file for easier reading into R
+
+# Read in data
+
+ruc_data <- data.table(read.xlsx("data-raw/ONS rural urban classification/J07B0304_1691_GeoPolicy.xlsx", sheet="LSOA", startRow = 7, colNames = FALSE))
+
+ruc_data[, paste0("X", c(1:8, 10:15)) := NULL]
+
+setnames(ruc_data, c("lsoa", "ruc_6level"))
+ruc_data <- ruc_data[substr(lsoa, 1, 3) == "E01"]
+
+ruc_data[, ruc_2level := "Rural"]
+ruc_data[ruc_6level == 1 | ruc_6level == 4, ruc_2level := "Urban"]
+ruc_data[, ruc_6level := NULL]
+
+
 # ONS Census data on ethnicity and long-term illness from NOMIS website
 # Note: 2011-census base LSOA level
 
@@ -125,8 +145,10 @@ census_data <- census_data_2011[, .(non_white_pc = sum(non_white_pc), longterm_i
 
 
 
-# Merge in IMD data -------------------------------------------------------
+
+# Merge in IMD & RUC data -------------------------------------------------
 
 census_data <- merge(census_data, imd_data, by = "lsoa")
+census_data <- merge(census_data, ruc_data, by = "lsoa")
 
 save(census_data, file = "data/census data.Rda", compress ="xz")
