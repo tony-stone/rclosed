@@ -459,10 +459,13 @@ nwas_amb_data_red[time_conveying_resource_on_scene < time_call_answered, time_co
 nwas_amb_data_red[time_at_destination < time_conveying_resource_on_scene, time_at_destination := adjustDST(time_conveying_resource_on_scene, time_at_destination, TRUE)]
 nwas_amb_data_red[time_clear < time_at_destination, time_clear := adjustDST(time_at_destination, time_clear, TRUE)]
 
-nwas_amb_data_red[, ':=' (call_to_scene_any = as.integer(time_first_resource_on_scene - time_call_answered),
-  call_to_scene_conveying = as.integer(time_conveying_resource_on_scene - time_call_answered),
+# Use time at switchboard for NWAS
+
+nwas_amb_data_red[, ':=' (call_to_scene_any = as.integer(time_first_resource_on_scene - time_at_switchboard),
+  call_to_scene_conveying = as.integer(time_conveying_resource_on_scene - time_at_switchboard),
   scene_to_dest = as.integer(time_at_destination - time_conveying_resource_on_scene),
-  call_to_dest = as.integer(time_at_destination - time_call_answered),
+  call_to_dest = as.integer(time_at_destination - time_at_switchboard),
+  switch_to_dest = as.integer(time_at_destination - time_at_switchboard),
   dest_to_clear = as.integer(time_clear - time_at_destination))]
 
 nwas_amb_data_red[call_to_scene_any < 0, call_to_scene_any := NA]
@@ -827,6 +830,7 @@ gc()
 
 load("data/amb_data_red_calls_part1.Rda")
 load("data/amb_data_red_calls_part2.Rda")
+
 amb_data_red_calls <- rbindlist(list(amb_data_red_calls_part1, amb_data_red_calls_part2))
 save(amb_data_red_calls, file = "data/amb_data_red_calls.Rda", compress = "xz")
 
