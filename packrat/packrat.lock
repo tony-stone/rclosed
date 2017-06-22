@@ -211,6 +211,12 @@ GithubUsername: tidyverse
 GithubRef: master
 GithubSha1: f6f9f9de41c48382c70cbccc253db198e3cdc128
 
+Package: ggrepel
+Source: CRAN
+Version: 0.6.5
+Hash: d9d200cd6ff8ec5ffd1e2bd17ff45e03
+Requires: Rcpp, ggplot2, scales
+
 Package: git2r
 Source: CRAN
 Version: 0.14.0
